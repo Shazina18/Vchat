@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vchat - Real Time Chat</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/emojionearea@3.4.2/dist/emojionearea.min.css">
+</head>
+<body class="light">
+    <div id="welcome-video" class="hidden">
+        <video id="welcome-video-player" autoplay muted>
+            <source src="/Vchat.mp4" type="video/mp4">
+        </video>
+        <button id="skip-video">Skip →</button>
+    </div>
+    <div class="container">
+        <header>
+            <button id="menu-btn" title="Menu">☰</button>
+            <img src="/Vchat(1).png" alt="Vchat Logo" id="logo">
+            <h1>Vchat</h1>
+            <div class="header-right">
+                <input type="text" id="search-input" placeholder="Search messages...">
+                <p class="status">Connecting...</p>
+                <button id="theme-btn" title="Toggle Theme">🌙</button>
+                <button id="edit-profile-btn" title="Edit Profile">✏️</button>
+                <button id="logout-btn" class="hidden">Logout</button>
+            </div>
+        </header>
+        
+        <div id="auth-screen">
+            <div class="auth-tabs">
+                <button class="tab-btn active" data-tab="login">Login</button>
+                <button class="tab-btn" data-tab="register">Register</button>
+            </div>
+            
+            <div id="login-form" class="auth-form">
+                <input type="text" id="login-username" placeholder="Username" maxlength="20">
+                <input type="password" id="login-password" placeholder="Password">
+                <button id="login-btn">Login</button>
+                <p class="error" id="login-error"></p>
+            </div>
+            
+            <div id="register-form" class="auth-form hidden">
+                <input type="text" id="register-username" placeholder="Username (3-20 chars)" maxlength="20">
+                <input type="password" id="register-password" placeholder="Password (min 4 chars)">
+                <input type="password" id="register-confirm" placeholder="Confirm Password">
+                <button id="register-btn">Register</button>
+                <p class="error" id="register-error"></p>
+            </div>
+        </div>
+
+        <div id="chat-screen" class="hidden">
+            <div id="sidebar">
+                <div id="tabs">
+                    <button class="tab-active" data-view="rooms">Rooms</button>
+                    <button data-view="private">Private</button>
+                    <button data-view="starred">⭐ Starred</button>
+                    <button data-view="calls">📞 Calls</button>
+                </div>
+                
+                <div id="rooms-view">
+                    <div id="rooms-section">
+                        <h3>Rooms</h3>
+                        <ul id="room-list">
+                            <li class="active" data-room="general">#general</li>
+                            <li data-room="random">#random</li>
+                            <li data-room="tech">#tech</li>
+                        </ul>
+                        <div class="new-room">
+                            <input type="text" id="new-room-name" placeholder="New room name">
+                            <button id="create-room-btn">+</button>
+                        </div>
+                    </div>
+                    <div id="users-section">
+                        <h3>Online Users</h3>
+                        <ul id="user-list"></ul>
+                    </div>
+                    <div id="all-users-section">
+                        <h3>All Users</h3>
+                        <ul id="all-users-list"></ul>
+                    </div>
+                </div>
+                
+                <div id="private-view" class="hidden">
+                    <h3>Private Chats</h3>
+                    <ul id="private-chats-list"></ul>
+                </div>
+                
+                <div id="starred-view" class="hidden">
+                    <h3>⭐ Starred Messages</h3>
+                    <ul id="starred-messages-list"></ul>
+                </div>
+                
+                <div id="calls-view" class="hidden">
+                    <h3>📞 Call History</h3>
+                    <ul id="call-history-list"></ul>
+                </div>
+            </div>
+            <div id="main-chat">
+                <div id="chat-header">
+                    <span id="current-room">#general</span>
+                    <span id="chat-type">Room</span>
+                </div>
+                <div id="selection-toolbar" class="hidden">
+                    <button id="btn-cancel-select" title="Cancel">✕</button>
+                    <span id="selection-count">0 selected</span>
+                    <div class="toolbar-actions">
+                        <button id="btn-star" title="Star">⭐</button>
+                        <button id="btn-copy" title="Copy">📋</button>
+                        <button id="btn-forward-select" title="Forward">↪️</button>
+                        <button id="btn-edit-select" title="Edit">✏️</button>
+                        <button id="btn-delete-select" title="Delete">🗑️</button>
+                    </div>
+                </div>
+                <div id="messages-container">
+                    <div id="messages"></div>
+                    <div id="typing-indicator" class="hidden"></div>
+                </div>
+                <div id="input-area">
+                    <div id="reply-preview" class="hidden">
+                        <span class="reply-text">Replying to <b></b></span>
+                        <button id="cancel-reply">✕</button>
+                    </div>
+                    <button id="emoji-btn" title="Emoji">😊</button>
+                    <button id="mic-btn" title="Voice Message">🎤</button>
+                    <button id="file-btn" title="File">📎</button>
+                    <button id="video-call-btn" title="Video Call">📹</button>
+                    <button id="voice-call-btn" title="Voice Call">📞</button>
+                    <input type="file" id="file-input" hidden>
+                    <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
+                    <button id="send-btn">Send</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="private-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>Send Private Message</h3>
+                <p>To: <span id="pm-to"></span></p>
+                <textarea id="pm-text" placeholder="Your message..."></textarea>
+                <button id="send-pm-btn">Send</button>
+            </div>
+        </div>
+        
+        <div id="call-modal" class="modal hidden">
+            <div class="call-modal-content">
+                <div id="call-header">
+                    <span id="call-status">Calling...</span>
+                    <span id="call-type">Voice Call</span>
+                </div>
+                <div id="video-container">
+                    <video id="local-video" autoplay muted></video>
+                    <video id="remote-video" autoplay></video>
+                </div>
+                <div id="call-controls">
+                    <button id="end-call-btn" class="call-btn end">End Call</button>
+                    <button id="mute-btn" class="call-btn">Mute</button>
+                    <button id="video-toggle-btn" class="call-btn">Video</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="incoming-call-modal" class="modal hidden">
+            <div class="call-modal-content incoming">
+                <h3>Incoming <span id="incoming-call-type">Voice</span> Call</h3>
+                <p>from <span id="incoming-caller"></span></p>
+                <div id="call-controls">
+                    <button id="accept-call-btn" class="call-btn accept">Accept</button>
+                    <button id="decline-call-btn" class="call-btn decline">Decline</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="edit-profile-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close-edit">&times;</span>
+                <h3>Edit Profile</h3>
+                <input type="text" id="edit-username" placeholder="New username" maxlength="20">
+                <input type="password" id="edit-password" placeholder="New password (optional)">
+                <input type="password" id="edit-current-password" placeholder="Current password" required>
+                <button id="save-profile-btn">Save Changes</button>
+                <button id="change-pic-btn">Change Profile Picture</button>
+                <p class="error" id="edit-error"></p>
+            </div>
+        </div>
+        
+        <div id="forward-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close-forward">&times;</span>
+                <h3>Forward Message</h3>
+                <input type="text" id="forward-to" placeholder="Username" maxlength="20">
+                <button id="forward-btn">Forward</button>
+            </div>
+        </div>
+        
+        <div id="profile-pic-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close-pic">&times;</span>
+                <h3>Change Profile Picture</h3>
+                <input type="file" id="profile-pic-input" accept="image/*">
+                <button id="upload-pic-btn">Upload</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/emojionearea@3.4.2/dist/emojionearea.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
