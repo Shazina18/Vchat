@@ -55,40 +55,53 @@ function loadContactsList() {
     
     myContacts.forEach(contact => {
         const count = getUnreadCount(contact);
+        const initial = contact.charAt(0).toUpperCase();
+        
+        // Contacts list
         const li = document.createElement('li');
+        li.className = 'chat-item';
         li.dataset.user = contact;
-        li.innerHTML = `<span class="chat-name">@${contact}</span><div><span class="unread-badge" style="display:${count > 0 ? 'inline-block' : 'none'}">${count > 99 ? '99+' : count}</span><button class="remove-contact" data-contact="${contact}">✕</button></div>`;
+        li.innerHTML = `
+            <div class="chat-avatar">${initial}<span class="online-dot" style="display:${Array.from(onlineUsers.values()).includes(contact) ? 'block' : 'none'}"></span></div>
+            <div class="chat-info">
+                <div class="chat-info-top"><span class="chat-name">@${contact}</span><span class="unread-badge" style="display:${count > 0 ? 'inline-block' : 'none'}">${count > 99 ? '99+' : count}</span></div>
+            </div>
+            <button class="remove-contact" data-contact="${contact}"><i data-lucide="x"></i></button>
+        `;
         li.onclick = (e) => {
-            if (e.target.classList.contains('remove-contact')) return;
+            if (e.target.closest('.remove-contact')) return;
             openPrivateChat(contact);
         };
         list.appendChild(li);
         
-        li.querySelector('.remove-contact').addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (confirm('Remove ' + contact + ' from contacts?')) {
-                myContacts = myContacts.filter(c => c !== contact);
-                saveContacts();
-                loadContactsList();
-            }
-        });
+        const removeBtn = li.querySelector('.remove-contact');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (confirm('Remove ' + contact + ' from contacts?')) {
+                    myContacts = myContacts.filter(c => c !== contact);
+                    saveContacts();
+                    loadContactsList();
+                }
+            });
+        }
         
-        // Also add to recent chats view
-        const chatLi = li.cloneNode(true);
-        chatLi.onclick = (e) => {
-            if (e.target.classList.contains('remove-contact')) return;
-            openPrivateChat(contact);
-        };
-        chatLi.querySelector('.remove-contact').addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (confirm('Remove ' + contact + ' from contacts?')) {
-                myContacts = myContacts.filter(c => c !== contact);
-                saveContacts();
-                loadContactsList();
-            }
-        });
+        // Recent chats list
+        const chatLi = document.createElement('li');
+        chatLi.className = 'chat-item';
+        chatLi.dataset.user = contact;
+        chatLi.innerHTML = `
+            <div class="chat-avatar">${initial}</div>
+            <div class="chat-info">
+                <div class="chat-info-top"><span class="chat-name">@${contact}</span><span class="chat-time"></span></div>
+                <div class="chat-preview">Start a conversation</div>
+            </div>
+            <div class="chat-meta"><span class="unread-badge" style="display:${count > 0 ? 'inline-block' : 'none'}">${count > 99 ? '99+' : count}</span></div>
+        `;
+        chatLi.onclick = () => openPrivateChat(contact);
         chatsList.appendChild(chatLi);
     });
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function addContact(contactUser) {
@@ -342,13 +355,16 @@ if (menuBtn) {
 // Theme toggle
 themeBtn.addEventListener('click', () => {
     document.body.classList.toggle('dark');
-    themeBtn.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
-    localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+    const isDark = document.body.classList.contains('dark');
+    themeBtn.innerHTML = isDark ? '<i data-lucide="sun"></i>' : '<i data-lucide="moon"></i>';
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 });
 
 if (localStorage.getItem('theme') === 'dark') {
     document.body.classList.add('dark');
-    themeBtn.textContent = '☀️';
+    themeBtn.innerHTML = '<i data-lucide="sun"></i>';
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 // Edit Profile
@@ -430,7 +446,7 @@ async function showUserProfile(targetUser) {
     const statusId = targetUser === username ? 'my-profile-modal-status' : 'profile-modal-status';
     
     document.getElementById(nameId).textContent = targetUser;
-    document.getElementById(statusId).textContent = Array.from(onlineUsers.values()).includes(targetUser) ? '🟢 Online' : '⚫ Offline';
+    document.getElementById(statusId).textContent = Array.from(onlineUsers.values()).includes(targetUser) ? 'Online' : 'Offline';
     
     // Load profile picture
     try {
@@ -484,6 +500,8 @@ function showChat() {
     loadProfilePic(username);
     updatePrivateChatsListUI();
     loadContactsList();
+    
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function setupSidebarTabs() {
@@ -536,18 +554,18 @@ async function showCallHistory() {
         
         calls.reverse().forEach(call => {
             const li = document.createElement('li');
+            li.className = 'call-history-item';
             const isIncoming = call.to === username;
             const otherUser = isIncoming ? call.from : call.to;
             const duration = call.duration ? formatDuration(call.duration) : '';
-            const status = call.status === 'answered' ? '↔️' : (call.status === 'missed' ? (isIncoming ? '📵' : '📞') : '📞');
+            const statusIcon = call.status === 'answered' ? '↔️' : (call.status === 'missed' ? (isIncoming ? '📵' : '📞') : '📞');
             const time = new Date(call.timestamp).toLocaleString();
             
-            li.style.cssText = 'padding:10px;margin-bottom:5px;background:white;border-radius:8px;display:flex;align-items:center;gap:10px;';
             li.innerHTML = `
-                <div style="font-size:1.5rem;">${status}</div>
-                <div style="flex:1;">
-                    <div style="font-weight:600;color:#333;">${otherUser}</div>
-                    <div style="font-size:0.75rem;color:#888;">${call.callType === 'video' ? '📹 Video' : '📞 Voice'} • ${duration || time}</div>
+                <div class="call-icon">${statusIcon}</div>
+                <div class="call-info">
+                    <div class="call-user">${otherUser}</div>
+                    <div class="call-detail">${call.callType === 'video' ? 'Video' : 'Voice'} • ${duration || time}</div>
                 </div>
             `;
             li.onclick = () => openPrivateChat(otherUser);
@@ -575,7 +593,7 @@ async function loadAllUsers() {
             const safeName = user.username.replace(/[^a-zA-Z0-9]/g, '');
             const isOnline = Array.from(onlineUsers.values()).includes(user.username);
             const picHtml = `<img class="profile-pic pic-${safeName}" id="allpic-${safeName}" src="" onerror="this.style.display='none'" style="display:none;width:24px;height:24px;border-radius:50%;margin-right:5px;cursor:pointer;" data-sender="${user.username}">`;
-            li.innerHTML = isOnline ? `${picHtml}<span class="user-name" style="cursor:pointer" data-sender="${user.username}">🟢 ${user.username}</span>` : `${picHtml}<span class="user-name" style="cursor:pointer" data-sender="${user.username}">⚫ ${user.username}</span>`;
+            li.innerHTML = `<img class="profile-pic pic-${safeName}" id="allpic-${safeName}" src="" onerror="this.style.display='none'" style="display:none;width:24px;height:24px;border-radius:50%;margin-right:5px;cursor:pointer;" data-sender="${user.username}"><span class="user-name" style="cursor:pointer" data-sender="${user.username}">${user.username}</span>`;
             li.style.opacity = isOnline ? '1' : '0.5';
             li.style.display = 'flex';
             li.style.alignItems = 'center';
@@ -611,7 +629,11 @@ function openPrivateChat(user) {
     }
     
     currentRoomEl.textContent = '@' + user;
-    chatTypeEl.textContent = 'Private';
+    chatTypeEl.textContent = 'Online';
+    
+    const headerAvatar = document.getElementById('header-avatar');
+    if (headerAvatar) headerAvatar.textContent = user.charAt(0).toUpperCase();
+    
     messagesContainer.innerHTML = '';
     
     async function loadPrivateHistory() {
@@ -633,8 +655,9 @@ function openPrivateChat(user) {
     let existingChat = Array.from(privateChatsList.children).find(li => li.dataset.user === user);
     if (!existingChat) {
         const li = document.createElement('li');
+        li.className = 'chat-item';
         li.dataset.user = user;
-        li.innerHTML = `<span class="chat-name">@${user}</span><span class="chat-preview">Loading...</span>`;
+        li.innerHTML = `<div class="chat-avatar">${user.charAt(0).toUpperCase()}</div><div class="chat-info"><div class="chat-info-top"><span class="chat-name">@${user}</span><span class="chat-time"></span></div><div class="chat-preview">Loading...</div></div>`;
         li.onclick = () => openPrivateChat(user);
         privateChatsList.appendChild(li);
         
@@ -669,12 +692,12 @@ function showStarredMessages() {
     
     starredMessages.forEach((msg, index) => {
         const li = document.createElement('li');
-        li.style.cssText = 'padding:10px;margin-bottom:5px;background:white;border-radius:8px;cursor:pointer;';
+        li.className = 'starred-message-item';
         li.innerHTML = `
-            <div style="font-weight:600;color:#667eea;font-size:0.85rem;">${msg.sender}</div>
-            <div style="color:#333;">${msg.text}</div>
-            <div style="font-size:0.7rem;color:#888;margin-top:4px;">${msg.time} ${msg.isPrivate ? '• Private' : '• ' + msg.room}</div>
-            <button class="unstar-btn" data-index="${index}" style="margin-top:5px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;background:transparent;cursor:pointer;font-size:0.75rem;">Remove ⭐</button>
+            <div class="star-sender">${msg.sender}</div>
+            <div class="star-text">${msg.text}</div>
+            <div class="star-meta">${msg.time} ${msg.isPrivate ? '• Private' : '• ' + msg.room}</div>
+            <button class="unstar-btn" data-index="${index}">Remove</button>
         `;
         li.querySelector('.unstar-btn').addEventListener('click', (e) => {
             e.stopPropagation();
@@ -970,6 +993,10 @@ roomList.addEventListener('click', (e) => {
             activePrivateChat = null;
             currentRoomEl.textContent = '#' + room;
             chatTypeEl.textContent = 'Room';
+            
+            const headerAvatar = document.getElementById('header-avatar');
+            if (headerAvatar) headerAvatar.textContent = room.charAt(0).toUpperCase();
+            
             messagesContainer.innerHTML = '';
             
             roomList.querySelectorAll('li').forEach(l => l.classList.remove('active'));
@@ -997,6 +1024,10 @@ createRoomBtn.addEventListener('click', () => {
         activePrivateChat = null;
         currentRoomEl.textContent = '#' + room;
         chatTypeEl.textContent = 'Room';
+        
+        const headerAvatar = document.getElementById('header-avatar');
+        if (headerAvatar) headerAvatar.textContent = room.charAt(0).toUpperCase();
+        
         messagesContainer.innerHTML = '';
         
         const tabs = document.querySelectorAll('#tabs button');
@@ -1114,8 +1145,9 @@ socket.on('private message', (data) => {
     let existingChat = Array.from(privateChatsList.children).find(li => li.dataset.user === otherUser);
     if (!existingChat) {
         const li = document.createElement('li');
+        li.className = 'chat-item';
         li.dataset.user = otherUser;
-        li.innerHTML = `<span class="chat-name">@${otherUser}</span><span class="chat-preview">${data.text.substring(0, 30)}${data.text.length > 30 ? '...' : ''}</span>`;
+        li.innerHTML = `<div class="chat-avatar">${otherUser.charAt(0).toUpperCase()}</div><div class="chat-info"><div class="chat-info-top"><span class="chat-name">@${otherUser}</span><span class="chat-time"></span></div><div class="chat-preview">${data.text.substring(0, 30)}${data.text.length > 30 ? '...' : ''}</div></div>`;
         li.onclick = () => openPrivateChat(otherUser);
         privateChatsList.appendChild(li);
         updatePrivateChatsListUI();
@@ -1293,9 +1325,8 @@ function updateAllUsersList() {
     
     const onlineUsernames = Array.from(onlineUsers.values());
     Array.from(allUsersList.children).forEach(li => {
-        const name = li.textContent.replace('🟢 ', '').replace('⚫ ', '');
+        const name = li.textContent.trim();
         const isOnline = onlineUsernames.includes(name);
-        li.innerHTML = isOnline ? `🟢 ${name}` : `⚫ ${name}`;
         li.style.opacity = isOnline ? '1' : '0.5';
     });
 }
@@ -1557,7 +1588,8 @@ micBtn.addEventListener('click', async () => {
             mediaRecorder.start();
             isRecording = true;
             micBtn.classList.add('recording');
-            micBtn.textContent = '⏹';
+            micBtn.innerHTML = '<i data-lucide="square"></i>';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
         } catch (err) {
             console.error('Microphone access denied:', err);
             alert('Please allow microphone access to record voice messages');
@@ -1566,7 +1598,8 @@ micBtn.addEventListener('click', async () => {
         mediaRecorder.stop();
         isRecording = false;
         micBtn.classList.remove('recording');
-        micBtn.textContent = '🎤';
+        micBtn.innerHTML = '<i data-lucide="mic"></i>';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 });
 

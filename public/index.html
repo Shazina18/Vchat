@@ -5,243 +5,258 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vchat - Real Time Chat</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/emojionearea@3.4.2/dist/emojionearea.min.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body class="light">
     <div id="welcome-video" class="hidden">
         <video id="welcome-video-player" autoplay muted>
             <source src="/Vchat.mp4" type="video/mp4">
         </video>
-        <button id="skip-video">Skip →</button>
+        <button id="skip-video">Skip</button>
     </div>
-    <div class="container">
-        <header>
-            <button id="menu-btn" title="Menu">☰</button>
-            <img src="/Vchat(1).png" alt="Vchat Logo" id="logo">
-            <h1>Vchat</h1>
-            <div class="header-right">
-                <input type="text" id="search-input" placeholder="Search messages...">
-                <p class="status">Connecting...</p>
-                <button id="theme-btn" title="Toggle Theme">🌙</button>
-                <button id="edit-profile-btn" title="Edit Profile">✏️</button>
-                <button id="logout-btn" class="hidden">Logout</button>
-            </div>
-        </header>
-        
-        <div id="auth-screen">
+
+    <!-- Auth Screen -->
+    <div id="auth-screen">
+        <div class="auth-card">
+            <h2>Vchat</h2>
+            <p class="subtitle">Connect with anyone, anywhere</p>
             <div class="auth-tabs">
                 <button class="tab-btn active" data-tab="login">Login</button>
                 <button class="tab-btn" data-tab="register">Register</button>
             </div>
             
             <div id="login-form" class="auth-form">
-                <input type="text" id="login-username" placeholder="Username" maxlength="20">
-                <input type="password" id="login-password" placeholder="Password">
-                <button id="login-btn">Login</button>
+                <input type="text" id="login-username" placeholder="Username" maxlength="20" autocomplete="username">
+                <input type="password" id="login-password" placeholder="Password" autocomplete="current-password">
+                <button id="login-btn">Sign In</button>
                 <p class="error" id="login-error"></p>
             </div>
             
             <div id="register-form" class="auth-form hidden">
-                <input type="text" id="register-username" placeholder="Username (3-20 chars)" maxlength="20">
-                <input type="password" id="register-password" placeholder="Password (min 4 chars)">
-                <input type="password" id="register-confirm" placeholder="Confirm Password">
-                <button id="register-btn">Register</button>
+                <input type="text" id="register-username" placeholder="Choose a username" maxlength="20" autocomplete="username">
+                <input type="password" id="register-password" placeholder="Create a password" autocomplete="new-password">
+                <input type="password" id="register-confirm" placeholder="Confirm password" autocomplete="new-password">
+                <button id="register-btn">Create Account</button>
                 <p class="error" id="register-error"></p>
-            </div>
-        </div>
-
-        <div id="chat-screen" class="hidden">
-            <div id="sidebar">
-                <div id="tabs">
-                    <button class="tab-active" data-view="chats">Chats</button>
-                    <button data-view="contacts">Contacts</button>
-                    <button data-view="starred">⭐ Starred</button>
-                    <button data-view="calls">📞 Calls</button>
-                </div>
-                
-                <div id="chats-view">
-                    <ul id="recent-chats-list"></ul>
-                </div>
-                <div id="contacts-view" class="hidden">
-                    <h3>Contacts</h3>
-                    <div id="add-contact-section">
-                        <input type="text" id="search-contact" placeholder="Search by username...">
-                        <button id="add-contact-btn">+ Add</button>
-                    </div>
-                    <ul id="contacts-list"></ul>
-                </div>
-                <div id="rooms-view" class="hidden">
-                    <div id="rooms-section">
-                        <h3>Rooms</h3>
-                        <ul id="room-list">
-                            <li class="active" data-room="general">#general</li>
-                            <li data-room="random">#random</li>
-                            <li data-room="tech">#tech</li>
-                        </ul>
-                        <div class="new-room">
-                            <input type="text" id="new-room-name" placeholder="New room name">
-                            <button id="create-room-btn">+</button>
-                        </div>
-                    </div>
-                    <div id="users-section">
-                        <h3>Online Users</h3>
-                        <ul id="user-list"></ul>
-                    </div>
-                    <div id="all-users-section">
-                        <h3>All Users</h3>
-                        <ul id="all-users-list"></ul>
-                    </div>
-                </div>
-                
-                <div id="private-view" class="hidden">
-                    <h3>Private Chats</h3>
-                    <ul id="private-chats-list"></ul>
-                </div>
-                
-                <div id="starred-view" class="hidden">
-                    <h3>⭐ Starred Messages</h3>
-                    <ul id="starred-messages-list"></ul>
-                </div>
-                
-                <div id="calls-view" class="hidden">
-                    <h3>📞 Call History</h3>
-                    <ul id="call-history-list"></ul>
-                </div>
-            </div>
-            <div id="main-chat">
-                <div id="chat-header">
-                    <span id="current-room">#general</span>
-                    <span id="chat-type">Room</span>
-                </div>
-                <div id="selection-toolbar" class="hidden">
-                    <button id="btn-cancel-select" title="Cancel">✕</button>
-                    <span id="selection-count">0 selected</span>
-                    <div class="toolbar-actions">
-                        <button id="btn-star" title="Star">⭐</button>
-                        <button id="btn-copy" title="Copy">📋</button>
-                        <button id="btn-forward-select" title="Forward">↪️</button>
-                        <button id="btn-edit-select" title="Edit">✏️</button>
-                        <button id="btn-delete-select" title="Delete">🗑️</button>
-                    </div>
-                </div>
-                <div id="messages-container">
-                    <div id="messages"></div>
-                    <div id="typing-indicator" class="hidden"></div>
-                </div>
-                <div id="input-area">
-                    <div id="reply-preview" class="hidden">
-                        <span class="reply-text">Replying to <b></b></span>
-                        <button id="cancel-reply">✕</button>
-                    </div>
-                    <button id="emoji-btn" title="Emoji">😊</button>
-                    <button id="mic-btn" title="Voice Message">🎤</button>
-                    <button id="file-btn" title="File">📎</button>
-                    <button id="video-call-btn" title="Video Call">📹</button>
-                    <button id="voice-call-btn" title="Voice Call">📞</button>
-                    <input type="file" id="file-input" hidden>
-                    <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
-                    <button id="send-btn">Send</button>
-                </div>
-            </div>
-        </div>
-
-        <div id="private-modal" class="modal hidden">
-            <div class="modal-content">
-                <span class="close">&times;</span>
-                <h3>Send Private Message</h3>
-                <p>To: <span id="pm-to"></span></p>
-                <textarea id="pm-text" placeholder="Your message..."></textarea>
-                <button id="send-pm-btn">Send</button>
-            </div>
-        </div>
-        
-        <div id="call-modal" class="modal hidden">
-            <div class="call-modal-content">
-                <div id="call-header">
-                    <span id="call-status">Calling...</span>
-                    <span id="call-type">Voice Call</span>
-                </div>
-                <div id="video-container">
-                    <video id="local-video" autoplay muted></video>
-                    <video id="remote-video" autoplay></video>
-                </div>
-                <div id="call-controls">
-                    <button id="end-call-btn" class="call-btn end">End Call</button>
-                    <button id="mute-btn" class="call-btn">Mute</button>
-                    <button id="video-toggle-btn" class="call-btn">Video</button>
-                </div>
-            </div>
-        </div>
-        
-        <div id="incoming-call-modal" class="modal hidden">
-            <div class="call-modal-content incoming">
-                <h3>Incoming <span id="incoming-call-type">Voice</span> Call</h3>
-                <p>from <span id="incoming-caller"></span></p>
-                <div id="call-controls">
-                    <button id="accept-call-btn" class="call-btn accept">Accept</button>
-                    <button id="decline-call-btn" class="call-btn decline">Decline</button>
-                </div>
-            </div>
-        </div>
-        
-        <div id="edit-profile-modal" class="modal hidden">
-            <div class="modal-content">
-                <span class="close-edit">&times;</span>
-                <h3>Edit Profile</h3>
-                <input type="text" id="edit-username" placeholder="New username" maxlength="20">
-                <input type="password" id="edit-password" placeholder="New password (optional)">
-                <input type="password" id="edit-current-password" placeholder="Current password" required>
-                <button id="save-profile-btn">Save Changes</button>
-                <button id="change-pic-btn">Change Profile Picture</button>
-                <p class="error" id="edit-error"></p>
-            </div>
-        </div>
-        
-        <div id="forward-modal" class="modal hidden">
-            <div class="modal-content">
-                <span class="close-forward">&times;</span>
-                <h3>Forward Message</h3>
-                <input type="text" id="forward-to" placeholder="Username" maxlength="20">
-                <button id="forward-btn">Forward</button>
-            </div>
-        </div>
-        
-        <div id="user-profile-modal" class="modal hidden">
-            <div class="user-profile-content">
-                <button id="close-profile-modal">&times;</button>
-                <img id="profile-modal-pic" class="profile-pic-large" src="" alt="Profile">
-                <h3 id="profile-modal-username"></h3>
-                <p id="profile-modal-status"></p>
-                <div id="profile-modal-actions">
-                    <button id="pm-from-profile" class="profile-btn">💬 Send Message</button>
-                </div>
-            </div>
-        </div>
-        
-        <div id="my-profile-modal" class="modal hidden">
-            <div class="user-profile-content">
-                <button id="close-my-profile-modal">&times;</button>
-                <img id="my-profile-modal-pic" class="profile-pic-large" src="" alt="Profile">
-                <h3 id="my-profile-modal-username"></h3>
-                <p id="my-profile-modal-status"></p>
-                <div id="my-profile-modal-actions">
-                    <button id="edit-profile-from-modal" class="profile-btn">✏️ Edit Profile</button>
-                </div>
-            </div>
-        </div>
-        
-        <div id="profile-pic-modal" class="modal hidden">
-            <div class="modal-content">
-                <span class="close-pic">&times;</span>
-                <h3>Change Profile Picture</h3>
-                <input type="file" id="profile-pic-input" accept="image/*">
-                <button id="upload-pic-btn">Upload</button>
             </div>
         </div>
     </div>
 
+    <!-- Chat Screen -->
+    <div id="chat-screen" class="hidden">
+        <header>
+            <button id="menu-btn"><i data-lucide="menu"></i></button>
+            <img src="/Vchat(1).png" alt="Vchat" id="logo">
+            <h1>Vchat</h1>
+            <div class="header-right">
+                <input type="text" id="search-input" placeholder="Search messages...">
+                <span class="status">Connecting...</span>
+                <button id="theme-btn" class="header-btn" title="Toggle Theme"><i data-lucide="moon"></i></button>
+                <button id="edit-profile-btn" class="header-btn" title="Profile"><i data-lucide="user"></i></button>
+                <button id="logout-btn" class="header-btn hidden" title="Logout"><i data-lucide="log-out"></i></button>
+            </div>
+        </header>
+
+        <div id="sidebar">
+            <div id="tabs">
+                <button class="tab-active" data-view="chats">Chats</button>
+                <button data-view="contacts">Contacts</button>
+                <button data-view="starred">Starred</button>
+                <button data-view="calls">Calls</button>
+            </div>
+            
+            <div id="chats-view">
+                <ul id="recent-chats-list"></ul>
+            </div>
+            
+            <div id="contacts-view" class="hidden">
+                <div id="add-contact-section">
+                    <input type="text" id="search-contact" placeholder="Search by username...">
+                    <button id="add-contact-btn">+ Add</button>
+                </div>
+                <ul id="contacts-list"></ul>
+            </div>
+            
+            <div id="rooms-view" class="hidden">
+                <div id="rooms-section">
+                    <h3>Rooms</h3>
+                    <ul id="room-list">
+                        <li class="active" data-room="general"># general</li>
+                        <li data-room="random"># random</li>
+                        <li data-room="tech"># tech</li>
+                    </ul>
+                    <div class="new-room">
+                        <input type="text" id="new-room-name" placeholder="New room name">
+                        <button id="create-room-btn">Create</button>
+                    </div>
+                </div>
+                <div id="users-section">
+                    <h3>Online Users</h3>
+                    <ul id="user-list"></ul>
+                </div>
+                <div id="all-users-section">
+                    <h3>All Users</h3>
+                    <ul id="all-users-list"></ul>
+                </div>
+            </div>
+            
+            <div id="private-view" class="hidden">
+                <h3>Private Chats</h3>
+                <ul id="private-chats-list"></ul>
+            </div>
+            
+            <div id="starred-view" class="hidden">
+                <h3>Starred Messages</h3>
+                <ul id="starred-messages-list"></ul>
+            </div>
+            
+            <div id="calls-view" class="hidden">
+                <h3>Call History</h3>
+                <ul id="call-history-list"></ul>
+            </div>
+        </div>
+
+        <div id="main-chat">
+            <div id="chat-header">
+                <div class="header-avatar" id="header-avatar">G</div>
+                <div class="header-info">
+                    <div class="header-name" id="current-room">#general</div>
+                    <div class="header-status" id="chat-type">Room</div>
+                </div>
+                <div class="header-actions">
+                    <button id="voice-call-btn-header" title="Voice Call"><i data-lucide="phone"></i></button>
+                    <button id="video-call-btn-header" title="Video Call"><i data-lucide="video"></i></button>
+                </div>
+            </div>
+            
+            <div id="selection-toolbar" class="hidden">
+                <button id="btn-cancel-select"><i data-lucide="x"></i></button>
+                <span id="selection-count">0 selected</span>
+                <div class="toolbar-actions">
+                    <button id="btn-star" title="Star"><i data-lucide="star"></i></button>
+                    <button id="btn-copy" title="Copy"><i data-lucide="copy"></i></button>
+                    <button id="btn-forward-select" title="Forward"><i data-lucide="forward"></i></button>
+                    <button id="btn-edit-select" title="Edit"><i data-lucide="pencil"></i></button>
+                    <button id="btn-delete-select" title="Delete"><i data-lucide="trash-2"></i></button>
+                </div>
+            </div>
+            
+            <div id="messages-container">
+                <div id="messages"></div>
+                <div id="typing-indicator" class="hidden"></div>
+            </div>
+            
+            <div id="reply-preview" class="hidden">
+                <span class="reply-text">Replying to <b></b></span>
+                <button id="cancel-reply"><i data-lucide="x"></i></button>
+            </div>
+            
+            <div id="input-area">
+                <div class="input-actions">
+                    <button id="emoji-btn" class="input-btn" title="Emoji"><i data-lucide="smile"></i></button>
+                    <button id="mic-btn" class="input-btn" title="Voice Message"><i data-lucide="mic"></i></button>
+                    <button id="file-btn" class="input-btn" title="File"><i data-lucide="paperclip"></i></button>
+                </div>
+                <input type="file" id="file-input" hidden>
+                <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
+                <button id="send-btn"><i data-lucide="send"></i> Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="private-modal" class="modal hidden">
+        <div class="modal-content">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <h3>Send Private Message</h3>
+            <p>To: <span id="pm-to"></span></p>
+            <textarea id="pm-text" placeholder="Your message..." rows="3"></textarea>
+            <button id="send-pm-btn">Send Message</button>
+        </div>
+    </div>
+    
+    <div id="call-modal" class="modal hidden">
+        <div class="call-modal-content">
+            <div id="call-header">
+                <span id="call-status">Calling...</span>
+                <span id="call-type">Voice Call</span>
+            </div>
+            <div id="video-container">
+                <video id="local-video" autoplay muted></video>
+                <video id="remote-video" autoplay></video>
+            </div>
+            <div id="call-controls">
+                <button id="end-call-btn" class="call-btn end">End Call</button>
+                <button id="mute-btn" class="call-btn">Mute</button>
+                <button id="video-toggle-btn" class="call-btn">Video</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="incoming-call-modal" class="modal hidden">
+        <div class="call-modal-content">
+            <h3>Incoming <span id="incoming-call-type">Voice</span> Call</h3>
+            <p>from <span id="incoming-caller"></span></p>
+            <div id="call-controls">
+                <button id="accept-call-btn" class="call-btn accept">Accept</button>
+                <button id="decline-call-btn" class="call-btn decline">Decline</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="edit-profile-modal" class="modal hidden">
+        <div class="modal-content">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <h3>Edit Profile</h3>
+            <input type="text" id="edit-username" placeholder="New username" maxlength="20">
+            <input type="password" id="edit-password" placeholder="New password (optional)">
+            <input type="password" id="edit-current-password" placeholder="Current password" required>
+            <button id="save-profile-btn">Save Changes</button>
+            <button id="change-pic-btn" style="background:transparent;color:var(--primary);border:1px solid var(--border);margin-top:8px;">Change Profile Picture</button>
+            <p class="error" id="edit-error"></p>
+        </div>
+    </div>
+    
+    <div id="forward-modal" class="modal hidden">
+        <div class="modal-content">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <h3>Forward Message</h3>
+            <input type="text" id="forward-to" placeholder="Username" maxlength="20">
+            <button id="forward-btn">Forward</button>
+        </div>
+    </div>
+    
+    <div id="user-profile-modal" class="modal hidden">
+        <div class="user-profile-content">
+            <button class="modal-close" id="close-profile-modal"><i data-lucide="x"></i></button>
+            <img id="profile-modal-pic" class="profile-pic-large" src="" alt="Profile" onerror="this.style.display='none'">
+            <h3 id="profile-modal-username"></h3>
+            <p id="profile-modal-status"></p>
+            <button id="pm-from-profile" class="profile-btn">Send Message</button>
+        </div>
+    </div>
+    
+    <div id="my-profile-modal" class="modal hidden">
+        <div class="user-profile-content">
+            <button class="modal-close" id="close-my-profile-modal"><i data-lucide="x"></i></button>
+            <img id="my-profile-modal-pic" class="profile-pic-large" src="" alt="Profile" onerror="this.style.display='none'">
+            <h3 id="my-profile-modal-username"></h3>
+            <p id="my-profile-modal-status"></p>
+            <button id="edit-profile-from-modal" class="profile-btn">Edit Profile</button>
+        </div>
+    </div>
+    
+    <div id="profile-pic-modal" class="modal hidden">
+        <div class="modal-content">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <h3>Change Profile Picture</h3>
+            <input type="file" id="profile-pic-input" accept="image/*">
+            <button id="upload-pic-btn">Upload</button>
+        </div>
+    </div>
+
     <script src="/socket.io/socket.io.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/emojionearea@3.4.2/dist/emojionearea.min.js"></script>
     <script src="script.js"></script>
+    <script>lucide.createIcons();</script>
 </body>
 </html>
