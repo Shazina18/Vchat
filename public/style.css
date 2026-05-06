@@ -766,7 +766,7 @@ body.selection-mode .message { padding-left: 30px; }
     align-items: center;
     justify-content: center;
 }
-#welcome-video video { width: 100%; height: 100%; object-fit: cover; }
+#welcome-video video { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
 #skip-video {
     position: absolute;
     top: 24px;

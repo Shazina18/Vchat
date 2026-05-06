@@ -12,16 +12,20 @@ if (welcomeVideo && welcomeVideoPlayer) {
     
     welcomeVideoPlayer.play().catch(() => {});
     
-    welcomeVideoPlayer.addEventListener('ended', () => {
+    let videoSkipped = false;
+    const skipVideo = () => {
+        if (videoSkipped) return;
+        videoSkipped = true;
         welcomeVideo.classList.add('hidden');
         container.style.display = 'flex';
-    });
+    };
+    
+    welcomeVideoPlayer.addEventListener('ended', skipVideo);
+    
+    setTimeout(skipVideo, 3000);
     
     if (skipBtn) {
-        skipBtn.addEventListener('click', () => {
-            welcomeVideo.classList.add('hidden');
-            container.style.display = 'flex';
-        });
+        skipBtn.addEventListener('click', skipVideo);
     }
 }
 
