@@ -4,11 +4,10 @@ const socket = io();
 const welcomeVideo = document.getElementById('welcome-video');
 const welcomeVideoPlayer = document.getElementById('welcome-video-player');
 const skipBtn = document.getElementById('skip-video');
-const container = document.querySelector('.container');
+const authScreen = document.getElementById('auth-screen');
 
 if (welcomeVideo && welcomeVideoPlayer) {
-    welcomeVideo.classList.remove('hidden');
-    container.style.display = 'none';
+    welcomeVideo.style.display = 'flex';
     
     welcomeVideoPlayer.play().catch(() => {});
     
@@ -16,8 +15,8 @@ if (welcomeVideo && welcomeVideoPlayer) {
     const skipVideo = () => {
         if (videoSkipped) return;
         videoSkipped = true;
-        welcomeVideo.classList.add('hidden');
-        container.style.display = 'flex';
+        welcomeVideo.style.display = 'none';
+        if (authScreen) authScreen.style.display = 'flex';
     };
     
     welcomeVideoPlayer.addEventListener('ended', skipVideo);
@@ -25,7 +24,11 @@ if (welcomeVideo && welcomeVideoPlayer) {
     setTimeout(skipVideo, 3000);
     
     if (skipBtn) {
-        skipBtn.addEventListener('click', skipVideo);
+        skipBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            skipVideo();
+        });
     }
 }
 
@@ -159,7 +162,6 @@ function saveStarredMessages() {
     localStorage.setItem('starredMessages', JSON.stringify(starredMessages));
 }
 
-const authScreen = document.getElementById('auth-screen');
 const chatScreen = document.getElementById('chat-screen');
 const tabBtns = document.querySelectorAll('.tab-btn');
 const loginForm = document.getElementById('login-form');
