@@ -1,36 +1,55 @@
 const socket = io();
 
-// Welcome video
-const welcomeVideo = document.getElementById('welcome-video');
-const welcomeVideoPlayer = document.getElementById('welcome-video-player');
-const skipBtn = document.getElementById('skip-video');
-const authScreen = document.getElementById('auth-screen');
-
-if (welcomeVideo && welcomeVideoPlayer) {
-    welcomeVideo.style.display = 'flex';
+// Welcome video - bulletproof inline approach
+(function() {
+    const overlay = document.getElementById('welcome-video');
+    if (!overlay) return;
     
-    welcomeVideoPlayer.play().catch(() => {});
+    const video = document.getElementById('welcome-video-player');
+    const btn = document.getElementById('skip-video');
+    const authScreen = document.getElementById('auth-screen');
     
-    let videoSkipped = false;
-    const skipVideo = () => {
-        if (videoSkipped) return;
-        videoSkipped = true;
-        welcomeVideo.style.display = 'none';
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100vw';
+    overlay.style.height = '100vh';
+    overlay.style.zIndex = '100000';
+    overlay.style.background = '#000';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    
+    if (authScreen) authScreen.style.display = 'none';
+    if (video) video.play().catch(function() {});
+    
+    function hide() {
+        overlay.style.display = 'none';
         if (authScreen) authScreen.style.display = 'flex';
-    };
+    }
     
-    welcomeVideoPlayer.addEventListener('ended', skipVideo);
-    
-    setTimeout(skipVideo, 3000);
-    
-    if (skipBtn) {
-        skipBtn.addEventListener('click', (e) => {
+    if (btn) {
+        btn.style.position = 'absolute';
+        btn.style.top = '20px';
+        btn.style.right = '20px';
+        btn.style.zIndex = '100001';
+        btn.style.padding = '10px 20px';
+        btn.style.background = 'rgba(255,255,255,0.9)';
+        btn.style.border = 'none';
+        btn.style.borderRadius = '20px';
+        btn.style.cursor = 'pointer';
+        btn.style.fontWeight = '600';
+        btn.style.fontSize = '14px';
+        btn.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            skipVideo();
+            hide();
         });
     }
-}
+    
+    if (video) video.addEventListener('ended', hide);
+    setTimeout(hide, 3000);
+})();
 
 let username = '';
 let currentRoom = 'general';
