@@ -53,13 +53,24 @@
         <div id="chat-screen" class="hidden">
             <div id="sidebar">
                 <div id="tabs">
-                    <button class="tab-active" data-view="rooms">Rooms</button>
-                    <button data-view="private">Private</button>
+                    <button class="tab-active" data-view="chats">Chats</button>
+                    <button data-view="contacts">Contacts</button>
                     <button data-view="starred">⭐ Starred</button>
                     <button data-view="calls">📞 Calls</button>
                 </div>
                 
-                <div id="rooms-view">
+                <div id="chats-view">
+                    <ul id="recent-chats-list"></ul>
+                </div>
+                <div id="contacts-view" class="hidden">
+                    <h3>Contacts</h3>
+                    <div id="add-contact-section">
+                        <input type="text" id="search-contact" placeholder="Search by username...">
+                        <button id="add-contact-btn">+ Add</button>
+                    </div>
+                    <ul id="contacts-list"></ul>
+                </div>
+                <div id="rooms-view" class="hidden">
                     <div id="rooms-section">
                         <h3>Rooms</h3>
                         <ul id="room-list">
@@ -192,6 +203,30 @@
                 <h3>Forward Message</h3>
                 <input type="text" id="forward-to" placeholder="Username" maxlength="20">
                 <button id="forward-btn">Forward</button>
+            </div>
+        </div>
+        
+        <div id="user-profile-modal" class="modal hidden">
+            <div class="user-profile-content">
+                <button id="close-profile-modal">&times;</button>
+                <img id="profile-modal-pic" class="profile-pic-large" src="" alt="Profile">
+                <h3 id="profile-modal-username"></h3>
+                <p id="profile-modal-status"></p>
+                <div id="profile-modal-actions">
+                    <button id="pm-from-profile" class="profile-btn">💬 Send Message</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="my-profile-modal" class="modal hidden">
+            <div class="user-profile-content">
+                <button id="close-my-profile-modal">&times;</button>
+                <img id="my-profile-modal-pic" class="profile-pic-large" src="" alt="Profile">
+                <h3 id="my-profile-modal-username"></h3>
+                <p id="my-profile-modal-status"></p>
+                <div id="my-profile-modal-actions">
+                    <button id="edit-profile-from-modal" class="profile-btn">✏️ Edit Profile</button>
+                </div>
             </div>
         </div>
         

@@ -36,6 +36,70 @@ let selectionMode = false;
 let selectedMessages = new Set();
 let starredMessages = JSON.parse(localStorage.getItem('starredMessages') || '[]');
 let unreadCounts = JSON.parse(localStorage.getItem('unreadCounts') || '{}');
+let myContacts = JSON.parse(localStorage.getItem('myContacts_' + username) || '[]');
+
+function saveContacts() {
+    localStorage.setItem('myContacts_' + username, JSON.stringify(myContacts));
+}
+
+function loadContactsList() {
+    const list = document.getElementById('contacts-list');
+    const chatsList = document.getElementById('recent-chats-list');
+    list.innerHTML = '';
+    chatsList.innerHTML = '';
+    
+    if (myContacts.length === 0) {
+        list.innerHTML = '<li style="color:#888;font-size:0.85rem;padding:15px;">No contacts yet. Add a username below!</li>';
+        return;
+    }
+    
+    myContacts.forEach(contact => {
+        const count = getUnreadCount(contact);
+        const li = document.createElement('li');
+        li.dataset.user = contact;
+        li.innerHTML = `<span class="chat-name">@${contact}</span><div><span class="unread-badge" style="display:${count > 0 ? 'inline-block' : 'none'}">${count > 99 ? '99+' : count}</span><button class="remove-contact" data-contact="${contact}">✕</button></div>`;
+        li.onclick = (e) => {
+            if (e.target.classList.contains('remove-contact')) return;
+            openPrivateChat(contact);
+        };
+        list.appendChild(li);
+        
+        li.querySelector('.remove-contact').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (confirm('Remove ' + contact + ' from contacts?')) {
+                myContacts = myContacts.filter(c => c !== contact);
+                saveContacts();
+                loadContactsList();
+            }
+        });
+        
+        // Also add to recent chats view
+        const chatLi = li.cloneNode(true);
+        chatLi.onclick = (e) => {
+            if (e.target.classList.contains('remove-contact')) return;
+            openPrivateChat(contact);
+        };
+        chatLi.querySelector('.remove-contact').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (confirm('Remove ' + contact + ' from contacts?')) {
+                myContacts = myContacts.filter(c => c !== contact);
+                saveContacts();
+                loadContactsList();
+            }
+        });
+        chatsList.appendChild(chatLi);
+    });
+}
+
+function addContact(contactUser) {
+    if (!myContacts.includes(contactUser) && contactUser !== username) {
+        myContacts.push(contactUser);
+        saveContacts();
+        loadContactsList();
+        return true;
+    }
+    return false;
+}
 
 function saveUnreadCounts() {
     localStorage.setItem('unreadCounts', JSON.stringify(unreadCounts));
@@ -127,6 +191,8 @@ const videoToggleBtn = document.getElementById('video-toggle-btn');
 const acceptCallBtn = document.getElementById('accept-call-btn');
 const declineCallBtn = document.getElementById('decline-call-btn');
 const searchInput = document.getElementById('search-input');
+const searchContactInput = document.getElementById('search-contact');
+const addContactBtn = document.getElementById('add-contact-btn');
 const replyPreview = document.getElementById('reply-preview');
 const cancelReplyBtn = document.getElementById('cancel-reply');
 const forwardModal = document.getElementById('forward-modal');
@@ -257,6 +323,7 @@ logoutBtn.addEventListener('click', async () => {
     registerPassword.value = '';
     registerConfirm.value = '';
     document.getElementById('sidebar').classList.remove('open');
+    myContacts = [];
 });
 
 // Mobile menu toggle
@@ -295,12 +362,7 @@ const saveProfileBtn = document.getElementById('save-profile-btn');
 const editError = document.getElementById('edit-error');
 
 editProfileBtn.addEventListener('click', () => {
-    if (!username) {
-        alert('Please login first');
-        return;
-    }
-    editUsername.value = username;
-    editProfileModal.classList.remove('hidden');
+    showUserProfile(username);
 });
 
 closeEdit.addEventListener('click', () => {
@@ -357,10 +419,62 @@ changePicBtn.addEventListener('click', () => {
     profilePicModal.classList.remove('hidden');
 });
 
+// User profile panel
+const userProfileModal = document.getElementById('user-profile-modal');
+const myProfileModal = document.getElementById('my-profile-modal');
+
+async function showUserProfile(targetUser) {
+    const profileModal = targetUser === username ? myProfileModal : userProfileModal;
+    const picId = targetUser === username ? 'my-profile-modal-pic' : 'profile-modal-pic';
+    const nameId = targetUser === username ? 'my-profile-modal-username' : 'profile-modal-username';
+    const statusId = targetUser === username ? 'my-profile-modal-status' : 'profile-modal-status';
+    
+    document.getElementById(nameId).textContent = targetUser;
+    document.getElementById(statusId).textContent = Array.from(onlineUsers.values()).includes(targetUser) ? '🟢 Online' : '⚫ Offline';
+    
+    // Load profile picture
+    try {
+        const res = await fetch('/api/profile-pic/' + targetUser);
+        const data = await res.json();
+        if (data.profilePic) {
+            document.getElementById(picId).src = '/uploads/' + data.profilePic;
+            document.getElementById(picId).style.display = 'block';
+        } else {
+            document.getElementById(picId).src = '';
+            document.getElementById(picId).style.display = 'none';
+        }
+    } catch (err) {
+        console.error('Failed to load profile pic:', err);
+    }
+    
+    profileModal.classList.remove('hidden');
+}
+
+document.getElementById('close-profile-modal').addEventListener('click', () => {
+    userProfileModal.classList.add('hidden');
+});
+
+document.getElementById('close-my-profile-modal').addEventListener('click', () => {
+    myProfileModal.classList.add('hidden');
+});
+
+document.getElementById('pm-from-profile').addEventListener('click', () => {
+    userProfileModal.classList.add('hidden');
+    openPrivateChat(document.getElementById('profile-modal-username').textContent);
+});
+
+document.getElementById('edit-profile-from-modal').addEventListener('click', () => {
+    myProfileModal.classList.add('hidden');
+    editProfileModal.classList.remove('hidden');
+});
+
 function showChat() {
     authScreen.classList.add('hidden');
     chatScreen.classList.remove('hidden');
     logoutBtn.classList.remove('hidden');
+    
+    // Load user-specific contacts
+    myContacts = JSON.parse(localStorage.getItem('myContacts_' + username) || '[]');
     
     console.log('Joining room:', currentRoom, 'as', username);
     socket.emit('join', { username: username, room: currentRoom });
@@ -369,12 +483,14 @@ function showChat() {
     setupSidebarTabs();
     loadProfilePic(username);
     updatePrivateChatsListUI();
+    loadContactsList();
 }
 
 function setupSidebarTabs() {
     const tabs = document.querySelectorAll('#tabs button');
+    const chatsView = document.getElementById('chats-view');
+    const contactsView = document.getElementById('contacts-view');
     const roomsView = document.getElementById('rooms-view');
-    const privateView = document.getElementById('private-view');
     const starredView = document.getElementById('starred-view');
     const callsView = document.getElementById('calls-view');
     
@@ -384,27 +500,21 @@ function setupSidebarTabs() {
             tab.classList.add('tab-active');
             
             const view = tab.dataset.view;
-            if (view === 'rooms') {
-                roomsView.classList.remove('hidden');
-                privateView.classList.add('hidden');
-                starredView.classList.add('hidden');
-                callsView.classList.add('hidden');
-            } else if (view === 'private') {
-                roomsView.classList.add('hidden');
-                privateView.classList.remove('hidden');
-                starredView.classList.add('hidden');
-                callsView.classList.add('hidden');
+            chatsView.classList.add('hidden');
+            contactsView.classList.add('hidden');
+            roomsView.classList.add('hidden');
+            starredView.classList.add('hidden');
+            callsView.classList.add('hidden');
+            
+            if (view === 'chats') {
+                chatsView.classList.remove('hidden');
+                loadContactsList();
+            } else if (view === 'contacts') {
+                contactsView.classList.remove('hidden');
+                loadContactsList();
             } else if (view === 'starred') {
-                roomsView.classList.add('hidden');
-                privateView.classList.add('hidden');
-                starredView.classList.remove('hidden');
-                callsView.classList.add('hidden');
                 showStarredMessages();
             } else if (view === 'calls') {
-                roomsView.classList.add('hidden');
-                privateView.classList.add('hidden');
-                starredView.classList.add('hidden');
-                callsView.classList.remove('hidden');
                 showCallHistory();
             }
         });
@@ -464,16 +574,16 @@ async function loadAllUsers() {
             const li = document.createElement('li');
             const safeName = user.username.replace(/[^a-zA-Z0-9]/g, '');
             const isOnline = Array.from(onlineUsers.values()).includes(user.username);
-            const picHtml = `<img class="profile-pic pic-${safeName}" id="allpic-${safeName}" src="" onerror="this.style.display='none'" style="display:none;width:24px;height:24px;border-radius:50%;margin-right:5px;">`;
-            li.innerHTML = isOnline ? `${picHtml}🟢 ${user.username}` : `${picHtml}⚫ ${user.username}`;
+            const picHtml = `<img class="profile-pic pic-${safeName}" id="allpic-${safeName}" src="" onerror="this.style.display='none'" style="display:none;width:24px;height:24px;border-radius:50%;margin-right:5px;cursor:pointer;" data-sender="${user.username}">`;
+            li.innerHTML = isOnline ? `${picHtml}<span class="user-name" style="cursor:pointer" data-sender="${user.username}">🟢 ${user.username}</span>` : `${picHtml}<span class="user-name" style="cursor:pointer" data-sender="${user.username}">⚫ ${user.username}</span>`;
             li.style.opacity = isOnline ? '1' : '0.5';
             li.style.display = 'flex';
             li.style.alignItems = 'center';
-            li.onclick = () => {
-                if (user.username !== username) {
-                    openPrivateChat(user.username);
+            li.addEventListener('click', (e) => {
+                if (e.target.dataset.sender || e.target.closest('[data-sender]')) {
+                    showUserProfile(user.username);
                 }
-            };
+            });
             allUsersList.appendChild(li);
             loadProfilePic(user.username);
         });
@@ -486,6 +596,13 @@ function openPrivateChat(user) {
     currentChatType = 'private';
     activePrivateChat = user;
     privateToUser = user;
+    
+    // Auto-add to contacts
+    if (!myContacts.includes(user)) {
+        myContacts.push(user);
+        saveContacts();
+        loadContactsList();
+    }
     
     setUnreadCount(user, 0);
     
@@ -580,6 +697,42 @@ messageInput.addEventListener('input', () => {
         typing = false;
         socket.emit('stop typing');
     }, 1500);
+});
+
+// Add contact
+addContactBtn.addEventListener('click', () => {
+    const target = searchContactInput.value.trim();
+    if (!target) return;
+    
+    if (target === username) {
+        alert("You can't add yourself!");
+        return;
+    }
+    
+    if (myContacts.includes(target)) {
+        alert('Already in your contacts!');
+        return;
+    }
+    
+    // Check if user exists on server
+    fetch('/api/users')
+        .then(res => res.json())
+        .then(users => {
+            const exists = users.find(u => u.username.toLowerCase() === target.toLowerCase());
+            if (exists) {
+                myContacts.push(exists.username);
+                saveContacts();
+                loadContactsList();
+                searchContactInput.value = '';
+                alert(exists.username + ' added to contacts!');
+            } else {
+                alert('User not found!');
+            }
+        });
+});
+
+searchContactInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') addContactBtn.click();
 });
 
 // Send message
@@ -945,6 +1098,13 @@ socket.on('private message', (data) => {
     const isOwn = data.sender === username;
     const otherUser = isOwn ? data.to : data.sender;
     
+    // Auto-add sender to contacts
+    if (!isOwn && !myContacts.includes(otherUser)) {
+        myContacts.push(otherUser);
+        saveContacts();
+        loadContactsList();
+    }
+    
     if (!privateChats.has(otherUser)) {
         privateChats.set(otherUser, []);
     }
@@ -1081,9 +1241,14 @@ function updateUserList() {
     onlineUsers.forEach((name, id) => {
         const li = document.createElement('li');
         const safeName = name.replace(/[^a-zA-Z0-9]/g, '');
-        const picHtml = `<img class="profile-pic pic-${safeName}" id="pic-${safeName}" src="" onerror="this.style.display='none'" style="display:none">`;
-        li.innerHTML = `${picHtml}<span class="status-dot online"></span> ${name}`;
+        const picHtml = `<img class="profile-pic pic-${safeName}" id="pic-${safeName}" src="" onerror="this.style.display='none'" style="display:none;cursor:pointer;" data-sender="${name}">`;
+        li.innerHTML = `${picHtml}<span class="status-dot online"></span> <span class="user-name" style="cursor:pointer" data-sender="${name}">${name}</span>`;
         if (name === username) li.classList.add('active');
+        li.addEventListener('click', (e) => {
+            if (e.target.dataset.sender || e.target.closest('[data-sender]')) {
+                showUserProfile(name);
+            }
+        });
         userList.appendChild(li);
         loadProfilePic(name);
     });
@@ -1177,14 +1342,14 @@ function addMessage(sender, text, isOwn, time, isPrivate = false, seen = false, 
         forwardHtml = `<div class="forwarded-indicator">Forwarded from ${forwardedFrom}</div>`;
     }
     
-    const senderPicHtml = !isOwn ? `<img class="msg-sender-pic pic-${sender.replace(/[^a-zA-Z0-9]/g, '')}" style="width:32px;height:32px;border-radius:50%;margin-right:8px;vertical-align:middle;display:none;" onerror="this.style.display='none'">` : '';
+    const senderPicHtml = !isOwn ? `<img class="msg-sender-pic pic-${sender.replace(/[^a-zA-Z0-9]/g, '')}" style="width:32px;height:32px;border-radius:50%;margin-right:8px;vertical-align:middle;display:none;cursor:pointer;" onerror="this.style.display='none'" data-sender="${sender}">` : '';
     
     messageEl.innerHTML = `
         <div class="msg-header">
             ${senderPicHtml}
             <span class="select-checkbox">◻</span>
-            ${(!isOwn && !isPrivate) ? '<div class="sender">' + sender + '</div>' : ''}
-            ${isPrivate ? '<div class="sender">💬 ' + sender + '</div>' : ''}
+            ${(!isOwn && !isPrivate) ? '<div class="sender" style="cursor:pointer" data-sender="' + sender + '">' + sender + '</div>' : ''}
+            ${isPrivate ? '<div class="sender" style="cursor:pointer" data-sender="' + sender + '">💬 ' + sender + '</div>' : ''}
         </div>
         ${replyHtml}
         ${forwardHtml}
@@ -1196,6 +1361,11 @@ function addMessage(sender, text, isOwn, time, isPrivate = false, seen = false, 
     messageEl.addEventListener('click', (e) => {
         if (selectionMode) {
             toggleMessageSelection(messageEl);
+            return;
+        }
+        if (e.target.dataset.sender || (e.target.closest('.sender') && e.target.closest('.sender').dataset.sender)) {
+            const user = e.target.dataset.sender || e.target.closest('.sender').dataset.sender;
+            if (user) showUserProfile(user);
         }
     });
     
