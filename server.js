@@ -4,13 +4,17 @@ const { Server } = require('socket.io');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const path = require('path');
+const fs = require('fs');
 const multer = require('multer');
 const Database = require('better-sqlite3');
+
+process.on('uncaughtException', err => console.error('UNCAUGHT:', err));
+process.on('unhandledRejection', err => console.error('UNHANDLED:', err));
 
 // SQLite database (persists across deploys on Render)
 const DB_PATH = path.join(__dirname, 'data', 'vchat.db');
 const DB_DIR = path.dirname(DB_PATH);
-if (require('fs').existsSync(DB_DIR) === false) require('fs').mkdirSync(DB_DIR);
+if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
 const db = new Database(DB_PATH);
 
 // Create tables
