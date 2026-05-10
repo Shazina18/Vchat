@@ -52,6 +52,8 @@ const socket = io();
 })();
 
 let username = '';
+
+const authScreen = document.getElementById('auth-screen');
 let currentRoom = 'general';
 let currentChatType = 'room'; // 'room' or 'private'
 let privateToUser = null;
