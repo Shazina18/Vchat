@@ -531,7 +531,7 @@ if (localStorage.getItem('theme') === 'dark') {
 // Edit Profile
 const editProfileBtn = document.getElementById('edit-profile-btn');
 const editProfileModal = document.getElementById('edit-profile-modal');
-const closeEdit = document.querySelector('.close-edit');
+const closeEdit = document.getElementById('close-edit-modal');
 const editUsername = document.getElementById('edit-username');
 const editPassword = document.getElementById('edit-password');
 const editCurrentPassword = document.getElementById('edit-current-password');
