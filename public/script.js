@@ -923,9 +923,9 @@ searchContactInput.addEventListener('keypress', (e) => {
 const importContactsBtn = document.getElementById('import-contacts-btn');
 if (importContactsBtn) {
     importContactsBtn.addEventListener('click', async () => {
-        // Try Contacts Picker API (Android Chrome)
-        if ('contacts' in navigator && 'ContactsManager' in window) {
-            try {
+        // Try Contacts Picker API (Android Chrome with permissions)
+        try {
+            if ('contacts' in navigator && 'ContactsManager' in window && navigator.contacts) {
                 const props = ['name', 'tel'];
                 const opts = { multiple: true };
                 const contacts = await navigator.contacts.select(props, opts);
@@ -942,7 +942,7 @@ if (importContactsBtn) {
                 });
                 
                 if (phoneSuffixes.length === 0) {
-                    alert('No phone numbers found in your device contacts.\nMake sure your friends registered with their phone number.');
+                    alert('No phone numbers found in contacts.\nMake sure friends registered with their phone number.');
                     return;
                 }
                 
@@ -955,7 +955,7 @@ if (importContactsBtn) {
                 const matchedUsers = Object.values(matchData.matches);
                 
                 if (matchedUsers.length === 0) {
-                    alert('No matching Vchat users found in your contacts.\n\nAsk friends to register with their phone number!');
+                    alert('No Vchat users found matching your contacts.\n\nAsk friends to register with their phone number!');
                     return;
                 }
                 
@@ -976,78 +976,15 @@ if (importContactsBtn) {
                     alert('All matching contacts already in your list.');
                 }
                 return;
-            } catch (err) {
-                if (err.name === 'NotAllowedError') {
-                    alert('Permission denied. Please allow contact access in your browser settings.');
-                    return;
-                }
-                // Fall through to file import
+            } else {
+                alert('Contact import is only available on Android Chrome.\n\nPlease add friends manually by clicking + Add and typing their username.');
             }
-        }
-        
-        // Fallback: vCard/CSV file import
-        if (confirm('Contacts API not available on this browser.\n\nPress OK to upload a contacts file (.vcf or .csv) instead,\nor Cancel to add manually.')) {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.vcf,.csv,.txt';
-            input.onchange = async (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                
-                const text = await file.text();
-                const phones = [];
-                
-                // Parse vCard (vcf)
-                if (file.name.endsWith('.vcf')) {
-                    const telMatches = text.match(/TEL[^:]*:([^\r\n]+)/gi);
-                    if (telMatches) {
-                        telMatches.forEach(m => {
-                            const phone = m.replace(/TEL[^:]*:/, '').replace(/[\s-]/g, '');
-                            if (phone.length > 6) phones.push(phone);
-                        });
-                    }
-                } else {
-                    // Parse CSV/txt - just extract any numbers
-                    const numberMatches = text.match(/[\+?\d][\d\s\-\(\)]{6,20}/g);
-                    if (numberMatches) {
-                        numberMatches.forEach(n => {
-                            const clean = n.replace(/[\s\-\(\)]/g, '');
-                            if (clean.length > 6) phones.push(clean);
-                        });
-                    }
-                }
-                
-                if (phones.length === 0) {
-                    alert('No phone numbers found in the file.');
-                    return;
-                }
-                
-                const matchRes = await fetch('/api/match-phones', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phones: phones.map(p => p.replace(/[^\d]/g, '').slice(-10)) })
-                });
-                const matchData = await matchRes.json();
-                const matchedUsers = Object.values(matchData.matches);
-                
-                let added = 0;
-                matchedUsers.forEach(matchedUsername => {
-                    if (!myContacts.includes(matchedUsername) && matchedUsername !== username) {
-                        myContacts.push(matchedUsername);
-                        added++;
-                    }
-                });
-                
-                if (added > 0) {
-                    saveContacts();
-                    loadContactsList();
-                    if (typeof lucide !== 'undefined') lucide.createIcons();
-                    alert('Added ' + added + ' contact(s) from the file!');
-                } else {
-                    alert('No matching users found.\n\nMake sure your friends registered with their phone number in Vchat.');
-                }
-            };
-            input.click();
+        } catch (err) {
+            if (err.name === 'NotAllowedError') {
+                alert('Permission denied.\n\nGo to your browser settings → Contacts → Allow for this site, then try again.');
+            } else {
+                alert('Could not access contacts: ' + (err.message || 'unknown error') + '\n\nPlease add friends manually.');
+            }
         }
     });
 }
