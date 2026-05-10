@@ -234,7 +234,7 @@ app.post('/api/update-profile', async (req, res) => {
 });
 
 app.get('/api/users', (req, res) => {
-    const users = db.prepare('SELECT id, username FROM users').all();
+    const users = db.prepare('SELECT id, username, phone FROM users').all().map(u => ({ id: u.id, username: u.username, hasPhone: !!u.phone }));
     res.json(users);
 });
 

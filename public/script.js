@@ -688,6 +688,12 @@ function setupSidebarTabs() {
             if (view === 'chats') {
                 chatsView.classList.remove('hidden');
                 loadContactsList();
+            } else if (view === 'users') {
+                roomsView.classList.remove('hidden');
+                document.getElementById('rooms-section').classList.add('hidden');
+                document.getElementById('users-section').classList.add('hidden');
+                document.getElementById('all-users-section').classList.remove('hidden');
+                loadAllUsers();
             } else if (view === 'contacts') {
                 contactsView.classList.remove('hidden');
                 loadContactsList();
@@ -753,8 +759,8 @@ async function loadAllUsers() {
             const li = document.createElement('li');
             const safeName = user.username.replace(/[^a-zA-Z0-9]/g, '');
             const isOnline = Array.from(onlineUsers.values()).includes(user.username);
-            const picHtml = `<img class="profile-pic pic-${safeName}" id="allpic-${safeName}" src="" onerror="this.style.display='none'" style="display:none;width:24px;height:24px;border-radius:50%;margin-right:5px;cursor:pointer;" data-sender="${user.username}">`;
-            li.innerHTML = `<img class="profile-pic pic-${safeName}" id="allpic-${safeName}" src="" onerror="this.style.display='none'" style="display:none;width:24px;height:24px;border-radius:50%;margin-right:5px;cursor:pointer;" data-sender="${user.username}"><span class="user-name" style="cursor:pointer" data-sender="${user.username}">${user.username}</span>`;
+            const phoneIcon = user.hasPhone ? '<i data-lucide="phone" style="width:12px;height:12px;margin-right:4px;color:#25D366;flex-shrink:0;"></i>' : '';
+            li.innerHTML = `<img class="profile-pic pic-${safeName}" id="allpic-${safeName}" src="" onerror="this.style.display='none'" style="display:none;width:24px;height:24px;border-radius:50%;margin-right:5px;cursor:pointer;" data-sender="${user.username}">${phoneIcon}<span class="user-name" style="cursor:pointer" data-sender="${user.username}">${user.username}</span>`;
             li.style.opacity = isOnline ? '1' : '0.5';
             li.style.display = 'flex';
             li.style.alignItems = 'center';
@@ -766,6 +772,7 @@ async function loadAllUsers() {
             allUsersList.appendChild(li);
             loadProfilePic(user.username);
         });
+        if (window.lucide) lucide.createIcons();
     } catch (err) {
         console.error('Failed to load users:', err);
     }
