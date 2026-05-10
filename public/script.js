@@ -282,7 +282,13 @@ tabBtns.forEach(btn => {
 });
 
 // Login
-loginBtn.addEventListener('click', async () => {
+loginBtn.addEventListener('click', loginHandler);
+loginForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    loginHandler();
+});
+
+async function loginHandler() {
     const user = loginUsername.value.trim();
     const pass = loginPassword.value;
     loginError.textContent = '';
@@ -292,20 +298,24 @@ loginBtn.addEventListener('click', async () => {
         return;
     }
     
-    const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: user, password: pass })
-    });
-    const data = await res.json();
-    
-    if (data.success) {
-        username = data.username;
-        showChat();
-    } else {
-        loginError.textContent = data.message;
+    try {
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: user, password: pass })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            username = data.username;
+            showChat();
+        } else {
+            loginError.textContent = data.message;
+        }
+    } catch (err) {
+        loginError.textContent = 'Connection error. Try again.';
     }
-});
+}
 
 loginPassword.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') loginBtn.click();
