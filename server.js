@@ -114,7 +114,7 @@ app.post('/api/send-otp', (req, res) => {
     
     otpStore.set(formattedPhone, { otp, expiresAt, attempts: 0 });
     
-    // Send via Twilio or fallback to console
+    // Send via Twilio or show in response/console
     if (twilioClient) {
         twilioClient.messages.create({
             body: `Your Vchat verification code is: ${otp}`,
@@ -124,8 +124,11 @@ app.post('/api/send-otp', (req, res) => {
             console.log('OTP sent to', formattedPhone);
             res.json({ success: true, message: 'OTP sent!' });
         }).catch(err => {
-            console.error('Twilio error:', err);
-            res.status(500).json({ success: false, message: 'Failed to send OTP. Try again.' });
+            console.error('Twilio error (falling back to display):', err.message);
+            console.log('\n========== OTP for', formattedPhone, '==========');
+            console.log('Code:', otp);
+            console.log('========================================\n');
+            res.json({ success: true, message: 'SMS failed. OTP shown below.', otp: otp });
         });
     } else {
         console.log('\n========== OTP for', formattedPhone, '==========');
