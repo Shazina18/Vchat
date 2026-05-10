@@ -214,25 +214,36 @@ app.post('/api/register', async (req, res) => {
 // Login (supports username OR phone)
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
+    console.log('Login attempt - username:', username);
+    
     if (!username || !password) {
         return res.status(400).json({ success: false, message: 'Username and password are required' });
     }
     
     let user = findUserByUsername(username);
+    console.log('Login - find by username:', user ? 'found' : 'not found');
+    
     if (!user) {
         // Try phone login
         const formattedPhone = formatPhone(username);
+        console.log('Login - trying phone:', formattedPhone);
         user = findUserByPhone(formattedPhone);
+        console.log('Login - find by phone:', user ? 'found' : 'not found');
     }
     
     if (!user) {
+        console.log('Login - user not found, returning error');
         return res.status(400).json({ success: false, message: 'Invalid username/phone or password' });
     }
+    
     const isMatch = await bcrypt.compare(password, user.password);
+    console.log('Login - password match:', isMatch);
+    
     if (!isMatch) {
         return res.status(400).json({ success: false, message: 'Invalid username/phone or password' });
     }
     req.session.user = { id: user.id, username: user.username };
+    console.log('Login - success for:', user.username);
     res.json({ success: true, username: user.username, phone: user.phone || null });
 });
 
