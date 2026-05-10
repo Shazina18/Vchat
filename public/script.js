@@ -329,7 +329,11 @@ registerBtn.addEventListener('click', async () => {
     const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: user, password: pass })
+        body: JSON.stringify({ 
+            username: user, 
+            password: pass,
+            phone: phoneVerified ? registerPhone.value.trim() : null
+        })
     });
     const data = await res.json();
     
@@ -344,6 +348,126 @@ registerBtn.addEventListener('click', async () => {
 registerConfirm.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') registerBtn.click();
 });
+
+// Phone OTP handling
+let phoneVerified = false;
+const registerPhone = document.getElementById('register-phone');
+const sendOtpBtn = document.getElementById('send-otp-btn');
+const registerOtp = document.getElementById('register-otp');
+const verifyOtpBtn = document.getElementById('verify-otp-btn');
+const otpStatus = document.getElementById('otp-status');
+const phoneInputGroup = document.getElementById('phone-input-group');
+const otpInputGroup = document.getElementById('otp-input-group');
+const registerBtnEl = document.getElementById('register-btn');
+
+if (sendOtpBtn) {
+    sendOtpBtn.addEventListener('click', async () => {
+        const phone = registerPhone.value.trim();
+        if (!phone) {
+            otpStatus.textContent = 'Enter a phone number';
+            otpStatus.className = 'status-msg';
+            return;
+        }
+        
+        sendOtpBtn.disabled = true;
+        sendOtpBtn.textContent = 'Sending...';
+        otpStatus.textContent = '';
+        
+        try {
+            const res = await fetch('/api/send-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                otpStatus.textContent = 'OTP sent! Check your phone.';
+                otpStatus.className = 'status-msg success';
+                phoneInputGroup.style.display = 'none';
+                otpInputGroup.classList.remove('hidden');
+                otpInputGroup.style.display = 'flex';
+                if (data.otp) {
+                    otpStatus.textContent += ' (Dev: ' + data.otp + ')';
+                }
+            } else {
+                otpStatus.textContent = data.message || 'Failed to send OTP';
+                otpStatus.className = 'status-msg';
+                sendOtpBtn.disabled = false;
+                sendOtpBtn.textContent = 'Send OTP';
+            }
+        } catch (err) {
+            otpStatus.textContent = 'Network error. Try again.';
+            otpStatus.className = 'status-msg';
+            sendOtpBtn.disabled = false;
+            sendOtpBtn.textContent = 'Send OTP';
+        }
+    });
+}
+
+if (verifyOtpBtn) {
+    verifyOtpBtn.addEventListener('click', async () => {
+        const phone = registerPhone.value.trim();
+        const otp = registerOtp.value.trim();
+        
+        if (!otp || otp.length < 6) {
+            otpStatus.textContent = 'Enter the 6-digit code';
+            otpStatus.className = 'status-msg';
+            return;
+        }
+        
+        verifyOtpBtn.disabled = true;
+        verifyOtpBtn.textContent = 'Verifying...';
+        
+        try {
+            const res = await fetch('/api/verify-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone, otp })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                phoneVerified = true;
+                otpStatus.textContent = '✓ Phone verified!';
+                otpStatus.className = 'status-msg success';
+                otpInputGroup.style.display = 'none';
+                verifyOtpBtn.textContent = 'Verified';
+            } else {
+                otpStatus.textContent = data.message || 'Invalid OTP';
+                otpStatus.className = 'status-msg';
+                verifyOtpBtn.disabled = false;
+                verifyOtpBtn.textContent = 'Verify';
+            }
+        } catch (err) {
+            otpStatus.textContent = 'Network error. Try again.';
+            otpStatus.className = 'status-msg';
+            verifyOtpBtn.disabled = false;
+            verifyOtpBtn.textContent = 'Verify';
+        }
+    });
+}
+
+// Allow sending OTP on Enter in phone field
+if (registerPhone) {
+    registerPhone.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendOtpBtn.click();
+    });
+}
+
+// Allow verifying OTP on Enter in OTP field
+if (registerOtp) {
+    registerOtp.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') verifyOtpBtn.click();
+    });
+    
+    // Auto-submit when 6 digits entered
+    registerOtp.addEventListener('input', () => {
+        if (registerOtp.value.length === 6) {
+            verifyOtpBtn.click();
+        }
+    });
+}
 
 // Logout
 logoutBtn.addEventListener('click', async () => {
@@ -782,6 +906,60 @@ addContactBtn.addEventListener('click', () => {
 searchContactInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') addContactBtn.click();
 });
+
+// Import device contacts
+const importContactsBtn = document.getElementById('import-contacts-btn');
+if (importContactsBtn) {
+    importContactsBtn.addEventListener('click', async () => {
+        if (!('contacts' in navigator) || !('ContactsManager' in window)) {
+            alert('Device contacts access not supported on this browser.\n\nPlease ask your friends for their usernames and add them manually above.');
+            return;
+        }
+        
+        try {
+            const props = ['name', 'email', 'tel'];
+            const opts = { multiple: true };
+            const contacts = await navigator.contacts.select(props, opts);
+            
+            if (!contacts || contacts.length === 0) return;
+            
+            const res = await fetch('/api/users');
+            const allUsers = await res.json();
+            let added = 0;
+            
+            contacts.forEach(contact => {
+                const names = contact.name || [];
+                const emails = contact.email || [];
+                const phones = contact.tel || [];
+                const keywords = [...names, ...emails, ...phones].filter(Boolean);
+                
+                allUsers.forEach(user => {
+                    const match = keywords.some(k => 
+                        user.username.toLowerCase().includes(k.toLowerCase()) ||
+                        k.toLowerCase().includes(user.username.toLowerCase())
+                    );
+                    if (match && !myContacts.includes(user.username) && user.username !== username) {
+                        myContacts.push(user.username);
+                        added++;
+                    }
+                });
+            });
+            
+            if (added > 0) {
+                saveContacts();
+                loadContactsList();
+                alert('Added ' + added + ' contact(s) from your device!');
+            } else {
+                alert('No matching Vchat users found in your device contacts.\n\nAsk your friends for their Vchat username and add it manually above.');
+            }
+        } catch (err) {
+            if (err.name !== 'NotAllowedError') {
+                console.error('Contacts import error:', err);
+                alert('Could not access contacts. Please add manually.');
+            }
+        }
+    });
+}
 
 // Send message
 sendBtn.addEventListener('click', sendMessage);

@@ -194,6 +194,29 @@ header h1 {
 }
 .auth-form button:hover { background: var(--primary-dark); }
 .error { color: var(--danger); font-size: 0.8rem; min-height: 20px; }
+.status-msg { color: var(--text-secondary); font-size: 0.8rem; min-height: 20px; }
+.status-msg.success { color: var(--success); }
+
+#phone-section { display: flex; flex-direction: column; gap: 8px; }
+#phone-input-group { display: flex; gap: 8px; }
+#phone-input-group input { flex: 1; }
+#send-otp-btn, #verify-otp-btn {
+    padding: 8px 16px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    transition: background 0.2s;
+}
+#send-otp-btn:hover, #verify-otp-btn:hover { background: var(--primary-dark); }
+#send-otp-btn:disabled, #verify-otp-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+#otp-input-group { display: flex; gap: 8px; }
+#otp-input-group input { flex: 1; letter-spacing: 4px; font-size: 1.1rem; text-align: center; }
+#phone-section .verified-badge { color: var(--success); font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 4px; }
 
 /* Chat Screen Layout */
 #chat-screen {
@@ -974,4 +997,9 @@ body.selection-mode .message { padding-left: 30px; }
     #tabs button { font-size: 0.7rem; padding: 6px 8px; }
     .chat-item { padding: 10px; gap: 10px; }
     .chat-avatar { width: 44px; height: 44px; }
+    
+    #auth-screen .auth-card { padding: 24px 20px; width: 95%; max-width: none; }
+    #auth-screen { padding: 20px; }
+    .auth-form input { font-size: 16px; padding: 14px 16px; }
+    .auth-form button { padding: 14px; font-size: 16px; }
 }

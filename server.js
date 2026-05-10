@@ -6,6 +6,22 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const crypto = require('crypto');
+
+// Twilio (optional - falls back to console OTP for development)
+let twilioClient = null;
+try {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    if (accountSid && authToken) {
+        twilioClient = require('twilio')(accountSid, authToken);
+        console.log('Twilio SMS enabled');
+    } else {
+        console.log('Twilio not configured - OTPs will appear in server logs');
+    }
+} catch (e) {
+    console.log('Twilio not installed - OTPs will appear in server logs');
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -18,6 +34,9 @@ const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
+
+// In-memory OTP store
+const otpStore = new Map();
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, UPLOADS_DIR),
@@ -68,8 +87,91 @@ function findUserByUsername(username) {
     return users.find(u => u.username.toLowerCase() === username.toLowerCase());
 }
 
+function findUserByPhone(phone) {
+    const users = loadUsers();
+    return users.find(u => u.phone === phone);
+}
+
+function formatPhone(phone) {
+    // Remove all non-digit characters except leading +
+    return phone.replace(/[^\d+]/g, '');
+}
+
+// Send OTP
+app.post('/api/send-otp', (req, res) => {
+    const { phone } = req.body;
+    if (!phone) {
+        return res.status(400).json({ success: false, message: 'Phone number required' });
+    }
+    
+    const formattedPhone = formatPhone(phone);
+    if (formattedPhone.length < 10) {
+        return res.status(400).json({ success: false, message: 'Invalid phone number' });
+    }
+    
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 min expiry
+    
+    otpStore.set(formattedPhone, { otp, expiresAt, attempts: 0 });
+    
+    // Send via Twilio or fallback to console
+    if (twilioClient) {
+        twilioClient.messages.create({
+            body: `Your Vchat verification code is: ${otp}`,
+            from: process.env.TWILIO_PHONE_NUMBER,
+            to: formattedPhone
+        }).then(() => {
+            console.log('OTP sent to', formattedPhone);
+            res.json({ success: true, message: 'OTP sent!' });
+        }).catch(err => {
+            console.error('Twilio error:', err);
+            res.status(500).json({ success: false, message: 'Failed to send OTP. Try again.' });
+        });
+    } else {
+        console.log('\n========== OTP for', formattedPhone, '==========');
+        console.log('Code:', otp);
+        console.log('Expires:', new Date(expiresAt).toLocaleTimeString());
+        console.log('========================================\n');
+        res.json({ success: true, message: 'OTP sent! (check server logs)', otp: otp });
+    }
+});
+
+// Verify OTP
+app.post('/api/verify-otp', (req, res) => {
+    const { phone, otp } = req.body;
+    if (!phone || !otp) {
+        return res.status(400).json({ success: false, message: 'Phone and OTP required' });
+    }
+    
+    const formattedPhone = formatPhone(phone);
+    const stored = otpStore.get(formattedPhone);
+    
+    if (!stored) {
+        return res.status(400).json({ success: false, message: 'No OTP sent to this number' });
+    }
+    
+    if (Date.now() > stored.expiresAt) {
+        otpStore.delete(formattedPhone);
+        return res.status(400).json({ success: false, message: 'OTP expired. Request a new one.' });
+    }
+    
+    stored.attempts++;
+    if (stored.attempts > 5) {
+        otpStore.delete(formattedPhone);
+        return res.status(400).json({ success: false, message: 'Too many attempts. Request a new OTP.' });
+    }
+    
+    if (stored.otp !== otp) {
+        return res.status(400).json({ success: false, message: 'Invalid OTP' });
+    }
+    
+    otpStore.delete(formattedPhone);
+    res.json({ success: true, message: 'Phone verified!' });
+});
+
+// Register with phone
 app.post('/api/register', async (req, res) => {
-    const { username, password } = req.body;
+    const { username, password, phone } = req.body;
     if (!username || !password) {
         return res.status(400).json({ success: false, message: 'Username and password are required' });
     }
@@ -82,33 +184,53 @@ app.post('/api/register', async (req, res) => {
     if (findUserByUsername(username)) {
         return res.status(400).json({ success: false, message: 'Username already exists' });
     }
+    
     const users = loadUsers();
+    
+    // Check if phone is already used
+    if (phone) {
+        const formattedPhone = formatPhone(phone);
+        if (findUserByPhone(formattedPhone)) {
+            return res.status(400).json({ success: false, message: 'Phone number already registered' });
+        }
+    }
+    
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = {
         id: Date.now().toString(),
         username: username.trim(),
-        password: hashedPassword
+        password: hashedPassword,
+        phone: phone ? formatPhone(phone) : null,
+        registeredAt: new Date().toISOString()
     };
     users.push(newUser);
     saveUsers(users);
     res.json({ success: true, message: 'Registration successful!' });
 });
 
+// Login (supports username OR phone)
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) {
         return res.status(400).json({ success: false, message: 'Username and password are required' });
     }
-    const user = findUserByUsername(username);
+    
+    let user = findUserByUsername(username);
     if (!user) {
-        return res.status(400).json({ success: false, message: 'Invalid username or password' });
+        // Try phone login
+        const formattedPhone = formatPhone(username);
+        user = findUserByPhone(formattedPhone);
+    }
+    
+    if (!user) {
+        return res.status(400).json({ success: false, message: 'Invalid username/phone or password' });
     }
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-        return res.status(400).json({ success: false, message: 'Invalid username or password' });
+        return res.status(400).json({ success: false, message: 'Invalid username/phone or password' });
     }
     req.session.user = { id: user.id, username: user.username };
-    res.json({ success: true, username: user.username });
+    res.json({ success: true, username: user.username, phone: user.phone || null });
 });
 
 app.post('/api/logout', (req, res) => {
@@ -164,7 +286,14 @@ app.post('/api/update-profile', async (req, res) => {
 
 app.get('/api/users', (req, res) => {
     const users = loadUsers();
+    // Never expose phone numbers or passwords
     res.json(users.map(u => ({ id: u.id, username: u.username })));
+});
+
+app.get('/api/my-phone', (req, res) => {
+    if (!req.session.user) return res.json({ phone: null });
+    const user = findUserByUsername(req.session.user.username);
+    res.json({ phone: user ? user.phone : null });
 });
 
 app.get('/api/messages', (req, res) => {

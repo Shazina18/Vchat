@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Vchat - Real Time Chat</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -26,7 +26,7 @@
             </div>
             
             <div id="login-form" class="auth-form">
-                <input type="text" id="login-username" placeholder="Username" maxlength="20" autocomplete="username">
+                <input type="text" id="login-username" placeholder="Username or phone number" maxlength="20" autocomplete="username">
                 <input type="password" id="login-password" placeholder="Password" autocomplete="current-password">
                 <button id="login-btn">Sign In</button>
                 <p class="error" id="login-error"></p>
@@ -36,6 +36,17 @@
                 <input type="text" id="register-username" placeholder="Choose a username" maxlength="20" autocomplete="username">
                 <input type="password" id="register-password" placeholder="Create a password" autocomplete="new-password">
                 <input type="password" id="register-confirm" placeholder="Confirm password" autocomplete="new-password">
+                <div id="phone-section">
+                    <div id="phone-input-group">
+                        <input type="tel" id="register-phone" placeholder="Phone (e.g. +923001234567)" autocomplete="tel">
+                        <button id="send-otp-btn" type="button">Send OTP</button>
+                    </div>
+                    <div id="otp-input-group" class="hidden">
+                        <input type="text" id="register-otp" placeholder="Enter 6-digit OTP" maxlength="6" inputmode="numeric" pattern="[0-9]*">
+                        <button id="verify-otp-btn" type="button">Verify</button>
+                    </div>
+                    <p id="otp-status" class="status-msg"></p>
+                </div>
                 <button id="register-btn">Create Account</button>
                 <p class="error" id="register-error"></p>
             </div>
@@ -73,6 +84,7 @@
                 <div id="add-contact-section">
                     <input type="text" id="search-contact" placeholder="Search by username...">
                     <button id="add-contact-btn">+ Add</button>
+                    <button id="import-contacts-btn" title="Import from device contacts"><i data-lucide="phone"></i></button>
                 </div>
                 <ul id="contacts-list"></ul>
             </div>
