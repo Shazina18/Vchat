@@ -883,8 +883,8 @@ messageInput.addEventListener('input', () => {
     }, 1500);
 });
 
-// Add contact
-addContactBtn.addEventListener('click', () => {
+// Add contact (supports username or phone)
+addContactBtn.addEventListener('click', async () => {
     const target = searchContactInput.value.trim();
     if (!target) return;
     
@@ -898,21 +898,49 @@ addContactBtn.addEventListener('click', () => {
         return;
     }
     
-    // Check if user exists on server
-    fetch('/api/users')
-        .then(res => res.json())
-        .then(users => {
-            const exists = users.find(u => u.username.toLowerCase() === target.toLowerCase());
-            if (exists) {
-                myContacts.push(exists.username);
-                saveContacts();
-                loadContactsList();
-                searchContactInput.value = '';
-                alert(exists.username + ' added to contacts!');
-            } else {
-                alert('User not found!');
-            }
+    // Check if user exists by username
+    const usersRes = await fetch('/api/users');
+    const users = await usersRes.json();
+    const userMatch = users.find(u => u.username.toLowerCase() === target.toLowerCase());
+    
+    if (userMatch) {
+        myContacts.push(userMatch.username);
+        saveContacts();
+        loadContactsList();
+        searchContactInput.value = '';
+        alert(userMatch.username + ' added to contacts!');
+        return;
+    }
+    
+    // Try matching by phone number
+    try {
+        const matchRes = await fetch('/api/match-phones', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phones: [target.replace(/[^\d]/g, '').slice(-10)] })
         });
+        const matchData = await matchRes.json();
+        const matchedUsername = Object.values(matchData.matches)[0];
+        
+        if (matchedUsername) {
+            if (matchedUsername === username) {
+                alert("That's your own number!");
+                return;
+            }
+            if (myContacts.includes(matchedUsername)) {
+                alert('Already in your contacts!');
+                return;
+            }
+            myContacts.push(matchedUsername);
+            saveContacts();
+            loadContactsList();
+            searchContactInput.value = '';
+            alert(matchedUsername + ' added to contacts!');
+            return;
+        }
+    } catch(e) {}
+    
+    alert('User not found. Make sure they registered with their phone number!');
 });
 
 searchContactInput.addEventListener('keypress', (e) => {
