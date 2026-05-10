@@ -296,6 +296,31 @@ app.get('/api/my-phone', (req, res) => {
     res.json({ phone: user ? user.phone : null });
 });
 
+// Match phone number suffixes (last 10 digits) to usernames - privacy-safe
+app.post('/api/match-phones', (req, res) => {
+    const { phones } = req.body;
+    if (!phones || !Array.isArray(phones)) {
+        return res.json({ matches: {} });
+    }
+    
+    const users = loadUsers();
+    const matches = {};
+    
+    phones.forEach(phoneSuffix => {
+        const clean = phoneSuffix.replace(/[^\d]/g, '');
+        if (clean.length < 6) return;
+        
+        const user = users.find(u => 
+            u.phone && u.phone.replace(/[^\d]/g, '').endsWith(clean)
+        );
+        if (user) {
+            matches[phoneSuffix] = user.username;
+        }
+    });
+    
+    res.json({ matches });
+});
+
 app.get('/api/messages', (req, res) => {
     const messages = loadMessages();
     res.json(messages);

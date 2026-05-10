@@ -923,52 +923,131 @@ searchContactInput.addEventListener('keypress', (e) => {
 const importContactsBtn = document.getElementById('import-contacts-btn');
 if (importContactsBtn) {
     importContactsBtn.addEventListener('click', async () => {
-        if (!('contacts' in navigator) || !('ContactsManager' in window)) {
-            alert('Device contacts access not supported on this browser.\n\nPlease ask your friends for their usernames and add them manually above.');
-            return;
-        }
-        
-        try {
-            const props = ['name', 'email', 'tel'];
-            const opts = { multiple: true };
-            const contacts = await navigator.contacts.select(props, opts);
-            
-            if (!contacts || contacts.length === 0) return;
-            
-            const res = await fetch('/api/users');
-            const allUsers = await res.json();
-            let added = 0;
-            
-            contacts.forEach(contact => {
-                const names = contact.name || [];
-                const emails = contact.email || [];
-                const phones = contact.tel || [];
-                const keywords = [...names, ...emails, ...phones].filter(Boolean);
+        // Try Contacts Picker API (Android Chrome)
+        if ('contacts' in navigator && 'ContactsManager' in window) {
+            try {
+                const props = ['name', 'tel'];
+                const opts = { multiple: true };
+                const contacts = await navigator.contacts.select(props, opts);
                 
-                allUsers.forEach(user => {
-                    const match = keywords.some(k => 
-                        user.username.toLowerCase().includes(k.toLowerCase()) ||
-                        k.toLowerCase().includes(user.username.toLowerCase())
-                    );
-                    if (match && !myContacts.includes(user.username) && user.username !== username) {
-                        myContacts.push(user.username);
+                if (!contacts || contacts.length === 0) return;
+                
+                // Extract phone numbers and match via server
+                const phoneSuffixes = [];
+                contacts.forEach(c => {
+                    (c.tel || []).forEach(phone => {
+                        const clean = phone.replace(/[^\d]/g, '').slice(-10);
+                        if (clean.length >= 6) phoneSuffixes.push(clean);
+                    });
+                });
+                
+                if (phoneSuffixes.length === 0) {
+                    alert('No phone numbers found in your device contacts.\nMake sure your friends registered with their phone number.');
+                    return;
+                }
+                
+                const matchRes = await fetch('/api/match-phones', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phones: phoneSuffixes })
+                });
+                const matchData = await matchRes.json();
+                const matchedUsers = Object.values(matchData.matches);
+                
+                if (matchedUsers.length === 0) {
+                    alert('No matching Vchat users found in your contacts.\n\nAsk friends to register with their phone number!');
+                    return;
+                }
+                
+                let added = 0;
+                matchedUsers.forEach(matchedUsername => {
+                    if (!myContacts.includes(matchedUsername) && matchedUsername !== username) {
+                        myContacts.push(matchedUsername);
                         added++;
                     }
                 });
-            });
-            
-            if (added > 0) {
-                saveContacts();
-                loadContactsList();
-                alert('Added ' + added + ' contact(s) from your device!');
-            } else {
-                alert('No matching Vchat users found in your device contacts.\n\nAsk your friends for their Vchat username and add it manually above.');
+                
+                if (added > 0) {
+                    saveContacts();
+                    loadContactsList();
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                    alert('Added ' + added + ' contact(s) from your device!');
+                } else {
+                    alert('All matching contacts already in your list.');
+                }
+                return;
+            } catch (err) {
+                if (err.name === 'NotAllowedError') {
+                    alert('Permission denied. Please allow contact access in your browser settings.');
+                    return;
+                }
+                // Fall through to file import
             }
-        } catch (err) {
-            if (err.name !== 'NotAllowedError') {
-                console.error('Contacts import error:', err);
-                alert('Could not access contacts. Please add manually.');
-            }
+        }
+        
+        // Fallback: vCard/CSV file import
+        if (confirm('Contacts API not available on this browser.\n\nPress OK to upload a contacts file (.vcf or .csv) instead,\nor Cancel to add manually.')) {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.vcf,.csv,.txt';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const text = await file.text();
+                const phones = [];
+                
+                // Parse vCard (vcf)
+                if (file.name.endsWith('.vcf')) {
+                    const telMatches = text.match(/TEL[^:]*:([^\r\n]+)/gi);
+                    if (telMatches) {
+                        telMatches.forEach(m => {
+                            const phone = m.replace(/TEL[^:]*:/, '').replace(/[\s-]/g, '');
+                            if (phone.length > 6) phones.push(phone);
+                        });
+                    }
+                } else {
+                    // Parse CSV/txt - just extract any numbers
+                    const numberMatches = text.match(/[\+?\d][\d\s\-\(\)]{6,20}/g);
+                    if (numberMatches) {
+                        numberMatches.forEach(n => {
+                            const clean = n.replace(/[\s\-\(\)]/g, '');
+                            if (clean.length > 6) phones.push(clean);
+                        });
+                    }
+                }
+                
+                if (phones.length === 0) {
+                    alert('No phone numbers found in the file.');
+                    return;
+                }
+                
+                const matchRes = await fetch('/api/match-phones', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phones: phones.map(p => p.replace(/[^\d]/g, '').slice(-10)) })
+                });
+                const matchData = await matchRes.json();
+                const matchedUsers = Object.values(matchData.matches);
+                
+                let added = 0;
+                matchedUsers.forEach(matchedUsername => {
+                    if (!myContacts.includes(matchedUsername) && matchedUsername !== username) {
+                        myContacts.push(matchedUsername);
+                        added++;
+                    }
+                });
+                
+                if (added > 0) {
+                    saveContacts();
+                    loadContactsList();
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                    alert('Added ' + added + ' contact(s) from the file!');
+                } else {
+                    alert('No matching users found.\n\nMake sure your friends registered with their phone number in Vchat.');
+                }
+            };
+            input.click();
         }
     });
 }
