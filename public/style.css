@@ -884,6 +884,19 @@ body.selection-mode .message { padding-left: 30px; }
 #room-list li:hover, #user-list li:hover, #all-users-list li:hover { background: var(--bg-input); }
 #room-list li.active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
 
+.user-list-item { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.875rem; transition: background 0.15s; }
+.user-list-item:hover { background: var(--bg-input); }
+.user-list-item .user-name { flex: 1; cursor: pointer; font-weight: 500; }
+.user-list-item .user-name:hover { color: var(--primary); }
+.user-actions { display: flex; gap: 2px; flex-shrink: 0; opacity: 0; transition: opacity 0.15s; }
+.user-list-item:hover .user-actions, .chat-item:hover .user-actions, #contacts-list .chat-item:hover .user-actions { opacity: 1; }
+.user-call-btn, .user-info-btn {
+    cursor: pointer; font-size: 0.85rem; padding: 4px 6px; border-radius: var(--radius-sm);
+    transition: background 0.15s; line-height: 1; display: inline-flex; align-items: center; justify-content: center;
+}
+.user-call-btn:hover { background: var(--primary-light); }
+.user-info-btn:hover { background: var(--bg-input); }
+
 .new-room { display: flex; gap: 8px; margin-top: 12px; padding: 0 8px; }
 .new-room input {
     flex: 1;

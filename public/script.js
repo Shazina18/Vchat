@@ -89,18 +89,39 @@ function loadContactsList() {
         const li = document.createElement('li');
         li.className = 'chat-item';
         li.dataset.user = contact;
+        const isOnline = Array.from(onlineUsers.values()).includes(contact);
         li.innerHTML = `
-            <div class="chat-avatar">${initial}<span class="online-dot" style="display:${Array.from(onlineUsers.values()).includes(contact) ? 'block' : 'none'}"></span></div>
+            <div class="chat-avatar">${initial}<span class="online-dot" style="display:${isOnline ? 'block' : 'none'}"></span></div>
             <div class="chat-info">
                 <div class="chat-info-top"><span class="chat-name">@${contact}</span><span class="unread-badge" style="display:${count > 0 ? 'inline-block' : 'none'}">${count > 99 ? '99+' : count}</span></div>
             </div>
+            <span class="user-actions">
+                <span class="user-call-btn" data-user="${contact}" data-calltype="voice" title="Voice call">📞</span>
+                <span class="user-call-btn" data-user="${contact}" data-calltype="video" title="Video call">📹</span>
+            </span>
             <button class="remove-contact" data-contact="${contact}"><i data-lucide="x"></i></button>
         `;
         li.onclick = (e) => {
-            if (e.target.closest('.remove-contact')) return;
+            if (e.target.closest('.remove-contact') || e.target.closest('.user-call-btn')) return;
+            const target = e.target.closest('[data-user]');
+            if (e.target.closest('.user-call-btn')) {
+                const type = e.target.closest('.user-call-btn').dataset.calltype;
+                openPrivateChat(contact);
+                setTimeout(() => startCall(type), 100);
+                return;
+            }
             openPrivateChat(contact);
         };
         list.appendChild(li);
+        
+        li.querySelectorAll('.user-call-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const type = btn.dataset.calltype;
+                openPrivateChat(contact);
+                setTimeout(() => startCall(type), 100);
+            });
+        });
         
         const removeBtn = li.querySelector('.remove-contact');
         if (removeBtn) {
@@ -756,17 +777,34 @@ async function loadAllUsers() {
         const allUsersList = document.getElementById('all-users-list');
         allUsersList.innerHTML = '';
         users.forEach(user => {
+            if (user.username === username) return;
             const li = document.createElement('li');
             const safeName = user.username.replace(/[^a-zA-Z0-9]/g, '');
             const isOnline = Array.from(onlineUsers.values()).includes(user.username);
             const phoneIcon = user.hasPhone ? '<i data-lucide="phone" style="width:12px;height:12px;margin-right:4px;color:#25D366;flex-shrink:0;"></i>' : '';
-            li.innerHTML = `<img class="profile-pic pic-${safeName}" id="allpic-${safeName}" src="" onerror="this.style.display='none'" style="display:none;width:24px;height:24px;border-radius:50%;margin-right:5px;cursor:pointer;" data-sender="${user.username}">${phoneIcon}<span class="user-name" style="cursor:pointer" data-sender="${user.username}">${user.username}</span>`;
+            li.innerHTML = `
+                <img class="profile-pic pic-${safeName}" src="" onerror="this.style.display='none'" style="display:none;width:28px;height:28px;border-radius:50%;cursor:pointer;flex-shrink:0;" data-user="${user.username}">
+                <span class="user-name" data-user="${user.username}">${user.username}</span>
+                <span class="user-actions">
+                    <span class="user-call-btn" data-user="${user.username}" data-calltype="voice" title="Voice call">📞</span>
+                    <span class="user-call-btn" data-user="${user.username}" data-calltype="video" title="Video call">📹</span>
+                    <span class="user-info-btn" data-user="${user.username}" title="View profile">ℹ️</span>
+                </span>
+            `;
+            li.className = 'user-list-item';
             li.style.opacity = isOnline ? '1' : '0.5';
-            li.style.display = 'flex';
-            li.style.alignItems = 'center';
             li.addEventListener('click', (e) => {
-                if (e.target.dataset.sender || e.target.closest('[data-sender]')) {
-                    showUserProfile(user.username);
+                const target = e.target.closest('[data-user]');
+                if (!target) return;
+                const u = target.dataset.user;
+                if (e.target.closest('.user-call-btn')) {
+                    const type = e.target.closest('.user-call-btn').dataset.calltype;
+                    openPrivateChat(u);
+                    setTimeout(() => startCall(type), 100);
+                } else if (e.target.closest('.user-info-btn')) {
+                    showUserProfile(u);
+                } else {
+                    openPrivateChat(u);
                 }
             });
             allUsersList.appendChild(li);
@@ -1537,14 +1575,32 @@ socket.on('update users', (data) => {
 function updateUserList() {
     userList.innerHTML = '';
     onlineUsers.forEach((name, id) => {
+        if (name === username) return;
         const li = document.createElement('li');
         const safeName = name.replace(/[^a-zA-Z0-9]/g, '');
-        const picHtml = `<img class="profile-pic pic-${safeName}" id="pic-${safeName}" src="" onerror="this.style.display='none'" style="display:none;cursor:pointer;" data-sender="${name}">`;
-        li.innerHTML = `${picHtml}<span class="status-dot online"></span> <span class="user-name" style="cursor:pointer" data-sender="${name}">${name}</span>`;
-        if (name === username) li.classList.add('active');
+        li.innerHTML = `
+            <img class="profile-pic pic-${safeName}" src="" onerror="this.style.display='none'" style="display:none;width:24px;height:24px;border-radius:50%;cursor:pointer;flex-shrink:0;" data-user="${name}">
+            <span class="status-dot online" style="margin:0 4px;"></span>
+            <span class="user-name" data-user="${name}">${name}</span>
+            <span class="user-actions">
+                <span class="user-call-btn" data-user="${name}" data-calltype="voice" title="Voice call">📞</span>
+                <span class="user-call-btn" data-user="${name}" data-calltype="video" title="Video call">📹</span>
+                <span class="user-info-btn" data-user="${name}" title="View profile">ℹ️</span>
+            </span>
+        `;
+        li.className = 'user-list-item';
         li.addEventListener('click', (e) => {
-            if (e.target.dataset.sender || e.target.closest('[data-sender]')) {
-                showUserProfile(name);
+            const target = e.target.closest('[data-user]');
+            if (!target) return;
+            const u = target.dataset.user;
+            if (e.target.closest('.user-call-btn')) {
+                const type = e.target.closest('.user-call-btn').dataset.calltype;
+                openPrivateChat(u);
+                setTimeout(() => startCall(type), 100);
+            } else if (e.target.closest('.user-info-btn')) {
+                showUserProfile(u);
+            } else {
+                openPrivateChat(u);
             }
         });
         userList.appendChild(li);
