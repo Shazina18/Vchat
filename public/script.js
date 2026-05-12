@@ -219,7 +219,7 @@ const privateModal = document.getElementById('private-modal');
 const pmTo = document.getElementById('pm-to');
 const pmText = document.getElementById('pm-text');
 const sendPmBtn = document.getElementById('send-pm-btn');
-const closeModal = document.querySelector('.close');
+const closeModal = document.getElementById('close-pm-modal');
 const privateChatsList = document.getElementById('private-chats-list');
 const callModal = document.getElementById('call-modal');
 const incomingCallModal = document.getElementById('incoming-call-modal');
@@ -550,7 +550,7 @@ closeEdit.addEventListener('click', () => {
     editError.textContent = '';
 });
 
-document.querySelector('.close-pic').addEventListener('click', () => {
+document.getElementById('close-pic-modal').addEventListener('click', () => {
     profilePicModal.classList.add('hidden');
 });
 
@@ -2122,7 +2122,7 @@ forwardBtn.addEventListener('click', async () => {
     forwardMessage = null;
 });
 
-document.querySelector('.close-forward').addEventListener('click', () => {
+document.getElementById('close-forward-modal').addEventListener('click', () => {
     forwardModal.classList.add('hidden');
     forwardMessage = null;
 });

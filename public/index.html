@@ -180,7 +180,7 @@
     <!-- Modals -->
     <div id="private-modal" class="modal hidden">
         <div class="modal-content">
-            <button class="modal-close"><i data-lucide="x"></i></button>
+            <button class="modal-close" id="close-pm-modal"><i data-lucide="x"></i></button>
             <h3>Send Private Message</h3>
             <p>To: <span id="pm-to"></span></p>
             <textarea id="pm-text" placeholder="Your message..." rows="3"></textarea>
@@ -232,7 +232,7 @@
     
     <div id="forward-modal" class="modal hidden">
         <div class="modal-content">
-            <button class="modal-close"><i data-lucide="x"></i></button>
+            <button class="modal-close" id="close-forward-modal"><i data-lucide="x"></i></button>
             <h3>Forward Message</h3>
             <input type="text" id="forward-to" placeholder="Username" maxlength="20">
             <button id="forward-btn">Forward</button>
@@ -261,7 +261,7 @@
     
     <div id="profile-pic-modal" class="modal hidden">
         <div class="modal-content">
-            <button class="modal-close"><i data-lucide="x"></i></button>
+            <button class="modal-close" id="close-pic-modal"><i data-lucide="x"></i></button>
             <h3>Change Profile Picture</h3>
             <input type="file" id="profile-pic-input" accept="image/*">
             <button id="upload-pic-btn">Upload</button>
