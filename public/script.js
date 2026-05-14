@@ -1,5 +1,15 @@
 const socket = io();
 
+// Fix mobile viewport height (avoids address bar cutting off bottom)
+(function() {
+    function setVH() {
+        document.documentElement.style.setProperty('--vh', window.innerHeight + 'px');
+    }
+    setVH();
+    window.addEventListener('resize', setVH);
+    window.addEventListener('orientationchange', function() { setTimeout(setVH, 100); });
+})();
+
 // Welcome video - bulletproof inline approach
 (function() {
     const overlay = document.getElementById('welcome-video');

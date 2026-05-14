@@ -47,33 +47,20 @@ body.dark {
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     background: var(--bg-app);
-    height: 100vh;
     overflow: hidden;
     color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
-}
-
-.container {
-    display: flex;
-    height: 100vh;
-    max-width: 1400px;
-    margin: 0 auto;
-    background: var(--bg-white);
-    overflow: hidden;
-    box-shadow: var(--shadow-xl);
 }
 
 .hidden { display: none !important; }
 
 /* Header */
 header {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
+    flex-shrink: 0;
     height: 60px;
     background: var(--primary);
     color: white;
@@ -219,11 +206,17 @@ header h1 {
 #phone-section .verified-badge { color: var(--success); font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 4px; }
 
 /* Chat Screen Layout */
+body { display: flex; flex-direction: column; }
 #chat-screen {
     display: flex;
-    width: 100%;
-    height: calc(100vh - 60px);
-    margin-top: 60px;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+#chat-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
 }
 
 /* Sidebar */
@@ -967,6 +960,7 @@ body.selection-mode .message { padding-left: 30px; }
 
 @media (max-width: 768px) {
     .container { max-width: 100%; }
+    #chat-body { position: relative; }
     #sidebar {
         position: fixed;
         left: -100%;
