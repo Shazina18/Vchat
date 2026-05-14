@@ -103,13 +103,6 @@ function loadContactsList() {
         `;
         li.onclick = (e) => {
             if (e.target.closest('.remove-contact') || e.target.closest('.user-call-btn')) return;
-            const target = e.target.closest('[data-user]');
-            if (e.target.closest('.user-call-btn')) {
-                const type = e.target.closest('.user-call-btn').dataset.calltype;
-                openPrivateChat(contact);
-                setTimeout(() => startCall(type), 100);
-                return;
-            }
             openPrivateChat(contact);
         };
         list.appendChild(li);
@@ -119,7 +112,7 @@ function loadContactsList() {
                 e.stopPropagation();
                 const type = btn.dataset.calltype;
                 openPrivateChat(contact);
-                setTimeout(() => startCall(type), 100);
+                startCall(type, contact);
             });
         });
         
@@ -800,7 +793,7 @@ async function loadAllUsers() {
                 if (e.target.closest('.user-call-btn')) {
                     const type = e.target.closest('.user-call-btn').dataset.calltype;
                     openPrivateChat(u);
-                    setTimeout(() => startCall(type), 100);
+                    startCall(type, u);
                 } else if (e.target.closest('.user-info-btn')) {
                     showUserProfile(u);
                 } else {
@@ -1596,7 +1589,7 @@ function updateUserList() {
             if (e.target.closest('.user-call-btn')) {
                 const type = e.target.closest('.user-call-btn').dataset.calltype;
                 openPrivateChat(u);
-                setTimeout(() => startCall(type), 100);
+                startCall(type, u);
             } else if (e.target.closest('.user-info-btn')) {
                 showUserProfile(u);
             } else {
@@ -1935,7 +1928,7 @@ voiceCallBtn.addEventListener('click', () => {
         alert('Select a private chat to start a voice call');
         return;
     }
-    startCall('voice');
+    startCall('voice', activePrivateChat);
 });
 
 // Video Call
@@ -1948,11 +1941,17 @@ videoCallBtn.addEventListener('click', () => {
         alert('Select a private chat to start a video call');
         return;
     }
-    startCall('video');
+    startCall('video', activePrivateChat);
 });
 
-async function startCall(type) {
+async function startCall(type, targetUser) {
     try {
+        if (targetUser) {
+            currentChatType = 'private';
+            activePrivateChat = targetUser;
+            callPartner = targetUser;
+        }
+        
         const constraints = {
             audio: true,
             video: type === 'video'
@@ -1987,7 +1986,6 @@ async function startCall(type) {
         
         currentCallId = Date.now().toString();
         currentCallType = type;
-        callPartner = activePrivateChat;
         callStartTime = Date.now();
         
         socket.emit('call request', {
@@ -2066,32 +2064,47 @@ function endCall(status = 'missed') {
 
 // Socket events for calls
 socket.on('call request', async (data) => {
-    callPartner = data.from;
-    currentCallType = data.callType;
-    currentCallId = data.callId;
-    callStartTime = null;
-    
-    document.getElementById('incoming-caller').textContent = data.from;
-    document.getElementById('incoming-call-type').textContent = data.callType === 'video' ? 'Video' : 'Voice';
-    incomingCallModal.classList.remove('hidden');
-    
-    const rtcSessionDescription = new RTCSessionDescription(data.offer);
-    peerConnection = new RTCPeerConnection(iceServers);
-    
-    peerConnection.ontrack = (e) => {
-        remoteVideo.srcObject = e.streams[0];
-    };
-    
-    await peerConnection.setRemoteDescription(rtcSessionDescription);
-    
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    
-    socket.emit('call signaling', {
-        type: 'answer',
-        answer: answer,
-        to: data.from
-    });
+    try {
+        callPartner = data.from;
+        currentCallType = data.callType;
+        currentCallId = data.callId;
+        callStartTime = null;
+        
+        document.getElementById('incoming-caller').textContent = data.from;
+        document.getElementById('incoming-call-type').textContent = data.callType === 'video' ? 'Video' : 'Voice';
+        incomingCallModal.classList.remove('hidden');
+        
+        const rtcSessionDescription = new RTCSessionDescription(data.offer);
+        peerConnection = new RTCPeerConnection(iceServers);
+        
+        peerConnection.ontrack = (e) => {
+            remoteVideo.srcObject = e.streams[0];
+        };
+        
+        peerConnection.onicecandidate = (e) => {
+            if (e.candidate) {
+                socket.emit('call signaling', {
+                    type: 'ice-candidate',
+                    candidate: e.candidate,
+                    to: data.from
+                });
+            }
+        };
+        
+        await peerConnection.setRemoteDescription(rtcSessionDescription);
+        
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        
+        socket.emit('call signaling', {
+            type: 'answer',
+            answer: answer,
+            to: data.from
+        });
+    } catch (err) {
+        console.error('Failed to handle incoming call:', err);
+        incomingCallModal.classList.add('hidden');
+    }
 });
 
 socket.on('call signaling', async (data) => {
@@ -2129,6 +2142,16 @@ acceptCallBtn.addEventListener('click', async () => {
         if (!peerConnection) {
             peerConnection = new RTCPeerConnection(iceServers);
         }
+        
+        peerConnection.onicecandidate = (e) => {
+            if (e.candidate) {
+                socket.emit('call signaling', {
+                    type: 'ice-candidate',
+                    candidate: e.candidate,
+                    to: callPartner
+                });
+            }
+        };
         
         localStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
