@@ -1005,14 +1005,62 @@ body.selection-mode .message { padding-left: 30px; }
 
 @media (max-width: 480px) {
     .message { max-width: 90%; padding: 8px 12px; }
-    #chat-header { padding: 8px 12px; }
+    #chat-header { padding: 6px 10px; gap: 8px; min-height: 52px; }
+    #chat-header .header-name { font-size: 0.85rem; }
+    #chat-header .header-avatar { width: 32px; height: 32px; font-size: 0.8rem; }
+    #chat-header .header-actions button { padding: 6px; }
     .input-btn { padding: 8px; }
-    #tabs button { font-size: 0.7rem; padding: 6px 8px; }
+    #tabs { padding: 8px 8px; gap: 4px; }
+    #tabs button { font-size: 0.65rem; padding: 6px 4px; }
     .chat-item { padding: 10px; gap: 10px; }
     .chat-avatar { width: 44px; height: 44px; }
+    #message-input { font-size: 16px; padding: 10px 14px; }
+    #send-btn { padding: 10px 14px; font-size: 0.8rem; }
+    #send-btn i { display: none; }
+    #input-area { padding: 6px 8px; gap: 4px; }
+    .input-actions { gap: 2px; }
+    .input-btn { padding: 8px 6px; }
+    #messages-container { padding: 8px; }
+    .message .action-btns { right: -4px; top: -4px; padding: 2px; }
+    .action-btns span { font-size: 0.75rem; padding: 3px 4px; }
+    .header-right .header-btn { padding: 6px; }
+    #search-input { width: 0; padding: 0; }
     
-    #auth-screen .auth-card { padding: 24px 20px; width: 95%; max-width: none; }
-    #auth-screen { padding: 20px; }
-    .auth-form input { font-size: 16px; padding: 14px 16px; }
+    #auth-screen .auth-card { padding: 20px 16px; width: 94%; max-width: none; }
+    #auth-screen { padding: 12px; }
+    .auth-card h2 { font-size: 1.4rem; }
+    .auth-form input { font-size: 16px; padding: 14px 12px; }
     .auth-form button { padding: 14px; font-size: 16px; }
+    #phone-input-group, #otp-input-group { flex-wrap: wrap; }
+    #send-otp-btn, #verify-otp-btn { padding: 10px 12px; font-size: 0.75rem; flex: 1; }
+    
+    /* Call modal mobile */
+    .call-modal-content { padding: 20px 16px; width: 95%; max-width: none; }
+    .call-modal-content h3 { font-size: 1.2rem; }
+    #video-container { flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    #local-video, #remote-video { width: 100%; height: 140px; }
+    #call-header { flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    #call-controls { flex-wrap: wrap; gap: 8px; }
+    .call-btn { padding: 12px 20px; font-size: 0.8rem; flex: 1; min-width: 80px; }
+    
+    /* Modals mobile */
+    .modal-content { padding: 24px 16px; width: 94%; max-width: none; }
+    .user-profile-content { padding: 24px 16px; width: 94%; max-width: none; }
+    .profile-pic-large { width: 80px; height: 80px; }
+    .modal-content input, .modal-content textarea { font-size: 16px; padding: 10px 12px; }
+    .modal-content button { padding: 12px 16px; font-size: 0.85rem; }
+    
+    /* Sidebar mobile improvements */
+    #sidebar { width: 90%; max-width: 300px; top: 52px; height: calc(100vh - 52px); }
+    #sidebar #tabs { padding: 8px; }
+    .user-list-item { padding: 10px 8px; }
+    .user-list-item .user-name { font-size: 0.8rem; }
+    .user-actions { opacity: 1; gap: 4px; }
+    .user-call-btn, .user-info-btn { font-size: 1rem; padding: 6px 8px; }
+    #add-contact-section { padding: 8px 10px; gap: 6px; }
+    #search-contact { font-size: 16px; padding: 10px 12px; }
+    #add-contact-btn { padding: 10px 14px; font-size: 0.8rem; }
+    
+    /* Welcome video on mobile */
+    #skip-video { top: 12px; right: 12px; padding: 8px 16px; font-size: 0.8rem; }
 }
