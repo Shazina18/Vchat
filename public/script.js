@@ -813,6 +813,7 @@ function openPrivateChat(user) {
     currentChatType = 'private';
     activePrivateChat = user;
     privateToUser = user;
+    document.getElementById('sidebar').classList.remove('open');
     
     // Auto-add to contacts
     if (!myContacts.includes(user)) {
