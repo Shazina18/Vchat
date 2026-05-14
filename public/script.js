@@ -2059,11 +2059,14 @@ function endCall(status = 'missed') {
     callPartner = null;
     currentCallId = null;
     callStartTime = null;
+    pendingCallOffer = null;
     localVideo.srcObject = null;
     remoteVideo.srcObject = null;
 }
 
 // Socket events for calls
+let pendingCallOffer = null;
+
 socket.on('call request', async (data) => {
     try {
         callPartner = data.from;
@@ -2093,15 +2096,7 @@ socket.on('call request', async (data) => {
         };
         
         await peerConnection.setRemoteDescription(rtcSessionDescription);
-        
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        
-        socket.emit('call signaling', {
-            type: 'answer',
-            answer: answer,
-            to: data.from
-        });
+        pendingCallOffer = data.from;
     } catch (err) {
         console.error('Failed to handle incoming call:', err);
         incomingCallModal.classList.add('hidden');
@@ -2154,19 +2149,35 @@ acceptCallBtn.addEventListener('click', async () => {
             }
         };
         
+        peerConnection.ontrack = (e) => {
+            remoteVideo.srcObject = e.streams[0];
+        };
+        
+        // Add local tracks BEFORE creating answer so answer includes mic/video
         localStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
         });
         
-        peerConnection.ontrack = (e) => {
-            remoteVideo.srcObject = e.streams[0];
-        };
+        // Now create answer with tracks included
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        
+        socket.emit('call signaling', {
+            type: 'answer',
+            answer: answer,
+            to: callPartner
+        });
         
         incomingCallModal.classList.add('hidden');
         callModal.classList.remove('hidden');
         callStartTime = Date.now();
         document.getElementById('call-type').textContent = currentCallType === 'video' ? 'Video Call' : 'Voice Call';
         document.getElementById('call-status').textContent = 'Connected';
+        
+        // Resume remote audio (browser may have blocked autoplay)
+        if (remoteVideo.srcObject) {
+            remoteVideo.play().catch(function(){});
+        }
         
     } catch (err) {
         console.error('Failed to accept call:', err);
