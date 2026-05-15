@@ -84,7 +84,15 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static('public', {
+    maxAge: 0,
+    etag: false,
+    setHeaders: function(res, path) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+}));
 app.use('/uploads', express.static(UPLOADS_DIR));
 app.use(session({
     secret: 'vchat-secret-key-2024',
