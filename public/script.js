@@ -1,13 +1,19 @@
 const socket = io();
 
-// Fix mobile viewport height (avoids address bar cutting off bottom)
+// Fix mobile viewport height (address bar and keyboard handling)
 (function() {
-    function setVH() {
-        document.documentElement.style.setProperty('--vh', window.innerHeight + 'px');
+    function setAppHeight() {
+        document.body.style.height = window.innerHeight + 'px';
     }
-    setVH();
-    window.addEventListener('resize', setVH);
-    window.addEventListener('orientationchange', function() { setTimeout(setVH, 100); });
+    setAppHeight();
+    window.addEventListener('resize', setAppHeight);
+    window.addEventListener('orientationchange', function() { setTimeout(setAppHeight, 100); });
+    // Handle keyboard on mobile - scroll input into view
+    document.addEventListener('focusin', function(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+            setTimeout(function() { e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300);
+        }
+    });
 })();
 
 // Welcome video - bulletproof inline approach

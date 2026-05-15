@@ -47,12 +47,11 @@ body.dark {
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html { height: 100%; }
+html, body { margin: 0; height: 100%; }
 body {
-    height: var(--app-height, 100vh);
+    overflow: hidden;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     background: var(--bg-app);
-    overflow: hidden;
     color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
 }
@@ -213,11 +212,13 @@ body { display: flex; flex-direction: column; }
     flex-direction: column;
     flex: 1;
     min-height: 0;
+    width: 100%;
 }
 #chat-body {
     display: flex;
     flex: 1;
     min-height: 0;
+    width: 100%;
 }
 
 /* Sidebar */
@@ -968,7 +969,7 @@ body.selection-mode .message { padding-left: 30px; }
         top: 60px;
         width: 85%;
         max-width: 320px;
-        height: calc(var(--app-height, 100vh) - 60px);
+        bottom: 0;
         z-index: 1000;
         transition: left 0.3s ease;
         box-shadow: var(--shadow-xl);
