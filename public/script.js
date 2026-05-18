@@ -1,5 +1,177 @@
 const socket = io();
 
+// ── Admin Panel ──
+
+function showAdminPanelBtn() {
+    const existing = document.getElementById('admin-panel-btn');
+    if (existing) return;
+    const headerActions = document.querySelector('.header-actions');
+    if (!headerActions) return;
+    const btn = document.createElement('button');
+    btn.id = 'admin-panel-btn';
+    btn.className = 'header-btn';
+    btn.title = 'Admin Panel';
+    btn.innerHTML = '<i data-lucide="shield"></i>';
+    btn.addEventListener('click', openAdminPanel);
+    headerActions.prepend(btn);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function openAdminPanel() {
+    const existing = document.getElementById('admin-panel-overlay');
+    if (existing) { existing.remove(); return; }
+    
+    const overlay = document.createElement('div');
+    overlay.id = 'admin-panel-overlay';
+    overlay.className = 'admin-overlay';
+    overlay.innerHTML = `
+        <div class="admin-panel">
+            <div class="admin-header">
+                <h2>Admin Panel</h2>
+                <button id="close-admin-btn" class="admin-close"><i data-lucide="x"></i></button>
+            </div>
+            <div class="admin-tabs">
+                <button class="admin-tab active" data-tab="stats">Stats</button>
+                <button class="admin-tab" data-tab="users">Users</button>
+                <button class="admin-tab" data-tab="messages">Messages</button>
+            </div>
+            <div class="admin-content" id="admin-content">
+                <div class="admin-loading">Loading...</div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    
+    document.getElementById('close-admin-btn').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    
+    // Tab switching
+    overlay.querySelectorAll('.admin-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            overlay.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            loadAdminTab(tab.dataset.tab);
+        });
+    });
+    
+    loadAdminTab('stats');
+}
+
+async function loadAdminTab(tab) {
+    const content = document.getElementById('admin-content');
+    if (!content) return;
+    content.innerHTML = '<div class="admin-loading">Loading...</div>';
+    
+    try {
+        if (tab === 'stats') {
+            const stats = await (await fetch('/api/admin/stats')).json();
+            content.innerHTML = `
+                <div class="admin-stats-grid">
+                    <div class="admin-stat-card"><strong>${stats.userCount}</strong> Users</div>
+                    <div class="admin-stat-card"><strong>${stats.msgCount}</strong> Messages</div>
+                    <div class="admin-stat-card"><strong>${stats.callCount}</strong> Calls</div>
+                    <div class="admin-stat-card"><strong>${stats.onlineCount}</strong> Online</div>
+                </div>
+            `;
+        } else if (tab === 'users') {
+            const users = await (await fetch('/api/admin/users')).json();
+            content.innerHTML = `
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead><tr><th>Username</th><th>Phone</th><th>Role</th><th>Registered</th><th>Actions</th></tr></thead>
+                        <tbody>
+                            ${users.map(u => `
+                                <tr>
+                                    <td>${u.username}</td>
+                                    <td>${u.phone || '—'}</td>
+                                    <td>${u.role}</td>
+                                    <td>${new Date(u.registeredAt).toLocaleDateString()}</td>
+                                    <td><button class="admin-view-user" data-user="${u.username}">View Data</button></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            content.querySelectorAll('.admin-view-user').forEach(btn => {
+                btn.addEventListener('click', () => viewUserData(btn.dataset.user));
+            });
+        } else if (tab === 'messages') {
+            const msgs = await (await fetch('/api/admin/messages')).json();
+            content.innerHTML = `
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead><tr><th>#</th><th>Sender</th><th>To</th><th>Text</th><th>Type</th><th>Time</th></tr></thead>
+                        <tbody>
+                            ${msgs.slice(0, 200).map((m, i) => `
+                                <tr>
+                                    <td>${i+1}</td>
+                                    <td>${m.sender || '?'}</td>
+                                    <td>${m.to_user || m.room || '—'}</td>
+                                    <td>${(m.text || '').substring(0, 40)}</td>
+                                    <td>${m.type}${m.isPrivate ? ' (private)' : ''}</td>
+                                    <td>${m.time || ''}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+    } catch (e) {
+        content.innerHTML = '<div class="admin-error">Failed to load: ' + e.message + '</div>';
+    }
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+async function viewUserData(username) {
+    const content = document.getElementById('admin-content');
+    if (!content) return;
+    content.innerHTML = '<div class="admin-loading">Loading...</div>';
+    
+    try {
+        const data = await (await fetch('/api/admin/user/' + username)).json();
+        content.innerHTML = `
+            <button class="admin-back" id="admin-back-users">← Back to users</button>
+            <h3 style="margin:10px 0">@${data.user.username}</h3>
+            <p>Phone: ${data.user.phone || '—'} | Role: ${data.user.role} | Registered: ${new Date(data.user.registeredAt).toLocaleString()}</p>
+            
+            <h4 style="margin-top:15px">Contacts (${data.contacts.length})</h4>
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead><tr><th>Contact</th></tr></thead>
+                    <tbody>${data.contacts.map(c => `<tr><td>${c}</td></tr>`).join('') || '<tr><td>No contacts</td></tr>'}</tbody>
+                </table>
+            </div>
+            
+            <h4 style="margin-top:15px">Latest Private Messages</h4>
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead><tr><th>From</th><th>To</th><th>Message</th><th>Time</th></tr></thead>
+                    <tbody>${data.messages.slice(-20).reverse().map(m => `
+                        <tr><td>${m.sender}</td><td>${m.to_user}</td><td>${(m.text || '(call)').substring(0, 60)}</td><td>${m.time || ''}</td></tr>
+                    `).join('') || '<tr><td colspan="4">No messages</td></tr>'}</tbody>
+                </table>
+            </div>
+            
+            <h4 style="margin-top:15px">Call History (${data.calls.length})</h4>
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead><tr><th>From</th><th>To</th><th>Type</th><th>Status</th><th>Duration</th></tr></thead>
+                    <tbody>${data.calls.slice(0, 20).map(c => `
+                        <tr><td>${c.callFrom}</td><td>${c.callTo}</td><td>${c.callType}</td><td>${c.callStatus}</td><td>${c.duration || 0}s</td></tr>
+                    `).join('') || '<tr><td colspan="5">No calls</td></tr>'}</tbody>
+                </table>
+            </div>
+        `;
+        document.getElementById('admin-back-users')?.addEventListener('click', () => loadAdminTab('users'));
+    } catch (e) {
+        content.innerHTML = '<div class="admin-error">Failed to load user data: ' + e.message + '</div>';
+    }
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
 // Fix mobile viewport height (handles address bar AND keyboard on iOS)
 (function() {
     function setAppHeight() {
@@ -79,10 +251,56 @@ let selectionMode = false;
 let selectedMessages = new Set();
 let starredMessages = JSON.parse(localStorage.getItem('starredMessages') || '[]');
 let unreadCounts = JSON.parse(localStorage.getItem('unreadCounts') || '{}');
-let myContacts = JSON.parse(localStorage.getItem('myContacts_' + username) || '[]');
+let myContacts = [];
+let isAdmin = false;
 
-function saveContacts() {
-    localStorage.setItem('myContacts_' + username, JSON.stringify(myContacts));
+async function loadContactsFromServer() {
+    try {
+        const res = await fetch('/api/contacts');
+        if (res.ok) { myContacts = await res.json(); }
+    } catch (_) {}
+    loadContactsList();
+}
+
+async function addContactToServer(contact) {
+    try {
+        const res = await fetch('/api/contacts/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contact })
+        });
+        const data = await res.json();
+        if (data.success) {
+            if (!myContacts.includes(contact)) myContacts.push(contact);
+            if (typeof loadContactsList === 'function') loadContactsList();
+            if (typeof updatePrivateChatsListUI === 'function') updatePrivateChatsListUI();
+            return true;
+        } else { alert(data.error); return false; }
+    } catch (_) { alert('Failed to add contact'); return false; }
+}
+
+async function removeContactFromServer(contact) {
+    try {
+        await fetch('/api/contacts/remove', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contact })
+        });
+        myContacts = myContacts.filter(c => c !== contact);
+        loadContactsList();
+        updatePrivateChatsListUI();
+    } catch (_) {}
+}
+
+async function checkAdmin() {
+    try {
+        const res = await fetch('/api/user');
+        const data = await res.json();
+        if (data.loggedIn && data.user.role === 'admin') {
+            isAdmin = true;
+            showAdminPanelBtn();
+        }
+    } catch (_) {}
 }
 
 function loadContactsList() {
@@ -136,9 +354,7 @@ function loadContactsList() {
             removeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (confirm('Remove ' + contact + ' from contacts?')) {
-                    myContacts = myContacts.filter(c => c !== contact);
-                    saveContacts();
-                    loadContactsList();
+                    removeContactFromServer(contact);
                 }
             });
         }
@@ -161,12 +377,9 @@ function loadContactsList() {
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
-function addContact(contactUser) {
+async function addContact(contactUser) {
     if (!myContacts.includes(contactUser) && contactUser !== username) {
-        myContacts.push(contactUser);
-        saveContacts();
-        loadContactsList();
-        return true;
+        return await addContactToServer(contactUser);
     }
     return false;
 }
@@ -337,6 +550,7 @@ async function loginHandler() {
         
         if (data.success) {
             username = data.username;
+            if (data.role === 'admin') { isAdmin = true; showAdminPanelBtn(); }
             showChat();
         } else {
             loginError.textContent = data.message;
@@ -679,17 +893,15 @@ function showChat() {
     chatScreen.classList.remove('hidden');
     logoutBtn.classList.remove('hidden');
     
-    // Load user-specific contacts
-    myContacts = JSON.parse(localStorage.getItem('myContacts_' + username) || '[]');
-    
     console.log('Joining room:', currentRoom, 'as', username);
     socket.emit('join', { username: username, room: currentRoom });
     
+    loadContactsFromServer();
     loadAllUsers();
     setupSidebarTabs();
     loadProfilePic(username);
     updatePrivateChatsListUI();
-    loadContactsList();
+    checkAdmin();
     
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
@@ -830,11 +1042,8 @@ function openPrivateChat(user) {
     privateToUser = user;
     document.getElementById('sidebar').classList.remove('open');
     
-    // Auto-add to contacts
     if (!myContacts.includes(user)) {
-        myContacts.push(user);
-        saveContacts();
-        loadContactsList();
+        addContactToServer(user);
     }
     
     setUnreadCount(user, 0);
@@ -958,11 +1167,8 @@ addContactBtn.addEventListener('click', async () => {
     const userMatch = users.find(u => u.username.toLowerCase() === target.toLowerCase());
     
     if (userMatch) {
-        myContacts.push(userMatch.username);
-        saveContacts();
-        loadContactsList();
-        searchContactInput.value = '';
-        alert(userMatch.username + ' added to contacts!');
+        const ok = await addContactToServer(userMatch.username);
+        if (ok) { searchContactInput.value = ''; alert(userMatch.username + ' added to contacts!'); }
         return;
     }
     
@@ -985,11 +1191,8 @@ addContactBtn.addEventListener('click', async () => {
                 alert('Already in your contacts!');
                 return;
             }
-            myContacts.push(matchedUsername);
-            saveContacts();
-            loadContactsList();
-            searchContactInput.value = '';
-            alert(matchedUsername + ' added to contacts!');
+            const ok = await addContactToServer(matchedUsername);
+            if (ok) { searchContactInput.value = ''; alert(matchedUsername + ' added to contacts!'); }
             return;
         }
     } catch(e) {}
@@ -1042,16 +1245,14 @@ if (importContactsBtn) {
                 }
                 
                 let added = 0;
-                matchedUsers.forEach(matchedUsername => {
+                for (const matchedUsername of matchedUsers) {
                     if (!myContacts.includes(matchedUsername) && matchedUsername !== username) {
-                        myContacts.push(matchedUsername);
-                        added++;
+                        const ok = await addContactToServer(matchedUsername);
+                        if (ok) added++;
                     }
-                });
+                }
                 
                 if (added > 0) {
-                    saveContacts();
-                    loadContactsList();
                     if (typeof lucide !== 'undefined') lucide.createIcons();
                     alert('Added ' + added + ' contact(s) from your device!');
                 } else {
@@ -1442,11 +1643,8 @@ socket.on('private message', (data) => {
     const isOwn = data.sender === username;
     const otherUser = isOwn ? data.to : data.sender;
     
-    // Auto-add sender to contacts
     if (!isOwn && !myContacts.includes(otherUser)) {
-        myContacts.push(otherUser);
-        saveContacts();
-        loadContactsList();
+        addContactToServer(otherUser);
     }
     
     if (!privateChats.has(otherUser)) {

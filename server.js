@@ -24,6 +24,7 @@ async function initDB() {
         password TEXT NOT NULL,
         phone TEXT,
         "profilePic" TEXT,
+        role TEXT DEFAULT 'user',
         "registeredAt" TIMESTAMP DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS messages (
@@ -46,7 +47,17 @@ async function initDB() {
       );
       CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room);
       CREATE INDEX IF NOT EXISTS idx_messages_private ON messages(to_user, sender);
+      CREATE TABLE IF NOT EXISTS contacts (
+        id SERIAL PRIMARY KEY,
+        owner TEXT NOT NULL,
+        contact TEXT NOT NULL,
+        "addedAt" TIMESTAMP DEFAULT NOW(),
+        UNIQUE(owner, contact)
+      );
+      CREATE INDEX IF NOT EXISTS idx_contacts_owner ON contacts(owner);
     `);
+    // Migration: add role column if not exists (existing databases)
+    try { await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT \'user\''); } catch (_) {}
     console.log('Database tables ready');
 }
 initDB().catch(err => { console.error('DB init failed:', err); process.exit(1); });
@@ -202,8 +213,8 @@ app.post('/api/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ success: false, message: 'Invalid username/phone or password' });
     
-    req.session.user = { id: user.id, username: user.username };
-    res.json({ success: true, username: user.username, phone: user.phone || null });
+    req.session.user = { id: user.id, username: user.username, role: user.role || 'user' };
+    res.json({ success: true, username: user.username, phone: user.phone || null, role: user.role || 'user' });
 });
 
 app.post('/api/logout', (req, res) => {
@@ -211,9 +222,10 @@ app.post('/api/logout', (req, res) => {
     res.json({ success: true });
 });
 
-app.get('/api/user', (req, res) => {
-    if (req.session.user) res.json({ loggedIn: true, user: req.session.user });
-    else res.json({ loggedIn: false });
+app.get('/api/user', async (req, res) => {
+    if (!req.session.user) return res.json({ loggedIn: false });
+    const user = await findUserByUsername(req.session.user.username);
+    res.json({ loggedIn: true, user: { id: user.id, username: user.username, role: user.role || 'user' } });
 });
 
 app.post('/api/update-profile', async (req, res) => {
@@ -306,6 +318,98 @@ app.get('/api/profile-pic/:username', async (req, res) => {
     const user = await findUserByUsername(req.params.username);
     if (user && user.profilePic) res.json({ profilePic: user.profilePic });
     else res.json({ profilePic: null });
+});
+
+// ── Contacts API ──
+app.get('/api/contacts', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
+    const r = await pool.query('SELECT contact, "addedAt" FROM contacts WHERE owner = $1 ORDER BY contact', [req.session.user.username]);
+    res.json(r.rows.map(c => c.contact));
+});
+
+app.post('/api/contacts/add', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
+    const { contact } = req.body;
+    if (!contact || contact === req.session.user.username) return res.status(400).json({ error: 'Invalid contact' });
+    // Verify contact exists
+    const exists = await findUserByUsername(contact);
+    if (!exists) return res.status(400).json({ error: 'User not found' });
+    try {
+        await pool.query('INSERT INTO contacts (owner, contact) VALUES ($1, $2)', [req.session.user.username, contact]);
+        res.json({ success: true });
+    } catch (e) {
+        if (e.code === '23505') return res.status(400).json({ error: 'Already in contacts' });
+        res.status(500).json({ error: 'Failed to add contact' });
+    }
+});
+
+app.post('/api/contacts/remove', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
+    const { contact } = req.body;
+    await pool.query('DELETE FROM contacts WHERE owner = $1 AND contact = $2', [req.session.user.username, contact]);
+    res.json({ success: true });
+});
+
+// ── Admin API ──
+const ADMIN_SECRET = process.env.ADMIN_SECRET || 'vchat-admin-2024';
+
+app.post('/api/promote', async (req, res) => {
+    const { username, secret } = req.body;
+    if (secret !== ADMIN_SECRET) return res.status(403).json({ error: 'Invalid secret' });
+    const user = await findUserByUsername(username);
+    if (!user) return res.status(400).json({ error: 'User not found' });
+    await pool.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', user.id]);
+    res.json({ success: true, message: username + ' is now admin' });
+});
+
+function requireAdmin(req, res, next) {
+    if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
+    pool.query('SELECT role FROM users WHERE username = $1', [req.session.user.username]).then(r => {
+        if (r.rows.length === 0 || r.rows[0].role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        next();
+    }).catch(() => res.status(500).json({ error: 'Server error' }));
+}
+
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+    const r = await pool.query('SELECT id, username, phone, role, "registeredAt" FROM users ORDER BY username');
+    res.json(r.rows);
+});
+
+app.get('/api/admin/user/:username', requireAdmin, async (req, res) => {
+    const user = await findUserByUsername(req.params.username);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    // Get user's contacts
+    const contacts = (await pool.query('SELECT contact FROM contacts WHERE owner = $1', [user.username])).rows.map(c => c.contact);
+    // Get user's private messages
+    const messages = (await pool.query(`SELECT * FROM messages WHERE "isPrivate" = 1 AND (sender = $1 OR to_user = $1) ORDER BY timestamp`, [user.username])).rows;
+    // Get user's call history
+    const calls = (await pool.query(`SELECT * FROM messages WHERE type = 'call' AND ("callFrom" = $1 OR "callTo" = $1) ORDER BY timestamp DESC LIMIT 50`, [user.username])).rows;
+    res.json({ user: { id: user.id, username: user.username, phone: user.phone, role: user.role, profilePic: user.profilePic, registeredAt: user.registeredAt }, contacts, messages, calls });
+});
+
+app.get('/api/admin/messages', requireAdmin, async (req, res) => {
+    const r = await pool.query('SELECT * FROM messages ORDER BY timestamp DESC LIMIT 500');
+    res.json(r.rows);
+});
+
+app.get('/api/admin/stats', requireAdmin, async (req, res) => {
+    const userCount = (await pool.query('SELECT COUNT(*) FROM users')).rows[0].count;
+    const msgCount = (await pool.query('SELECT COUNT(*) FROM messages')).rows[0].count;
+    const callCount = (await pool.query('SELECT COUNT(*) FROM messages WHERE type = \'call\'')).rows[0].count;
+    const onlineCount = onlineUsers.size;
+    res.json({ userCount, msgCount, callCount, onlineCount });
+});
+
+// Remove the insecure /api/messages (all messages) endpoint
+// The frontend does not use it; replace with per-user version
+app.get('/api/messages', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
+    // Return only messages relevant to this user
+    const currentUser = req.session.user.username;
+    const r = await pool.query(`SELECT * FROM messages WHERE sender = $1 OR to_user = $1 OR room IN (
+      SELECT DISTINCT room FROM messages WHERE sender = $1 OR to_user = $1 OR room IS NOT NULL
+    ) ORDER BY timestamp DESC LIMIT 200`, [currentUser]);
+    res.json(r.rows);
 });
 
 const rooms = new Map();
