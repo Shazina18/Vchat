@@ -1,2 +1,4 @@
 node_modules/
-data/
+vchat.db
+uploads/*
+!uploads/.gitkeep
