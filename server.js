@@ -6,61 +6,64 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
-const { Pool } = require('pg');
+const initSqlJs = require('sql.js');
 
 process.on('uncaughtException', err => console.error('UNCAUGHT:', err));
 process.on('unhandledRejection', err => console.error('UNHANDLED:', err));
 
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
-});
+// ── Dual Database: PostgreSQL (Render) or SQLite (local) ──
+const USE_PG = !!process.env.DATABASE_URL;
+let dbQuery, pgPool;
 
-async function initDB() {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        phone TEXT,
-        "profilePic" TEXT,
-        role TEXT DEFAULT 'user',
-        "registeredAt" TIMESTAMP DEFAULT NOW()
-      );
-      CREATE TABLE IF NOT EXISTS messages (
-        id TEXT PRIMARY KEY,
-        sender TEXT NOT NULL,
-        text TEXT,
-        to_user TEXT,
-        room TEXT,
-        file TEXT,
-        "isPrivate" INTEGER DEFAULT 0,
-        type TEXT DEFAULT 'message',
-        "callType" TEXT,
-        "callFrom" TEXT,
-        "callTo" TEXT,
-        duration INTEGER DEFAULT 0,
-        "callStatus" TEXT,
-        timestamp BIGINT,
-        time TEXT,
-        "deletedForEveryone" INTEGER DEFAULT 0
-      );
-      CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room);
-      CREATE INDEX IF NOT EXISTS idx_messages_private ON messages(to_user, sender);
-      CREATE TABLE IF NOT EXISTS contacts (
-        id SERIAL PRIMARY KEY,
-        owner TEXT NOT NULL,
-        contact TEXT NOT NULL,
-        "addedAt" TIMESTAMP DEFAULT NOW(),
-        UNIQUE(owner, contact)
-      );
-      CREATE INDEX IF NOT EXISTS idx_contacts_owner ON contacts(owner);
-    `);
-    // Migration: add role column if not exists (existing databases)
-    try { await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT \'user\''); } catch (_) {}
-    console.log('Database tables ready');
+if (USE_PG) {
+    const { Pool } = require('pg');
+    pgPool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+    dbQuery = async (sql, params) => {
+        try {
+            const isSelect = /^\s*(SELECT|WITH)/i.test(sql.trim());
+            const r = await pgPool.query(sql, params || []);
+            return isSelect ? r.rows : null;
+        } catch (e) { console.error('DB error:', e.message); return []; }
+    };
+} else {
+    const DB_PATH = path.join(__dirname, 'vchat.db');
+    let sqliteDb;
+    dbQuery = (sql, params) => {
+        if (!sqliteDb) return [];
+        const isSelect = /^\s*(SELECT|WITH|PRAGMA)/i.test(sql.trim());
+        try {
+            if (isSelect) {
+                const stmt = sqliteDb.prepare(sql);
+                if (params && params.length > 0) stmt.bind(params);
+                const rows = []; while (stmt.step()) rows.push(stmt.getAsObject());
+                stmt.free(); return rows;
+            } else {
+                sqliteDb.run(sql, params || []); return null;
+            }
+        } catch (e) { console.error('DB error:', e.message); return isSelect ? [] : null; }
+    };
+    (async () => {
+        const SQL = await initSqlJs();
+        let data = null;
+        if (fs.existsSync(DB_PATH)) data = new Uint8Array(fs.readFileSync(DB_PATH));
+        sqliteDb = new SQL.Database(data || undefined);
+        // Create tables + indices
+        sqliteDb.run("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, phone TEXT, profilePic TEXT, role TEXT DEFAULT 'user', registeredAt TEXT DEFAULT (datetime('now')))");
+        sqliteDb.run("CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, sender TEXT NOT NULL, text TEXT, to_user TEXT, room TEXT, file TEXT, isPrivate INTEGER DEFAULT 0, type TEXT DEFAULT 'message', callType TEXT, callFrom TEXT, callTo TEXT, duration INTEGER DEFAULT 0, callStatus TEXT, timestamp BIGINT, time TEXT, deletedForEveryone INTEGER DEFAULT 0)");
+        sqliteDb.run("CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room)");
+        sqliteDb.run("CREATE INDEX IF NOT EXISTS idx_messages_private ON messages(to_user, sender)");
+        sqliteDb.run("CREATE TABLE IF NOT EXISTS contacts (id INTEGER PRIMARY KEY AUTOINCREMENT, owner TEXT NOT NULL, contact TEXT NOT NULL, addedAt TEXT DEFAULT (datetime('now')), UNIQUE(owner, contact))");
+        sqliteDb.run("CREATE INDEX IF NOT EXISTS idx_contacts_owner ON contacts(owner)");
+        try { sqliteDb.run("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'"); } catch (_) {}
+        saveDb();
+        console.log('SQLite database ready');
+    })().catch(err => { console.error('DB init failed:', err); process.exit(1); });
+    function saveDb() {
+        if (!sqliteDb) return;
+        try { fs.writeFileSync(DB_PATH, Buffer.from(sqliteDb.export())); } catch (e) { console.error('Save DB error:', e.message); }
+    }
+    setInterval(saveDb, 5000);
 }
-initDB().catch(err => { console.error('DB init failed:', err); process.exit(1); });
 
 let twilioClient = null;
 try {
@@ -113,13 +116,13 @@ app.use(session({
 }));
 
 async function findUserByUsername(username) {
-    const r = await pool.query('SELECT * FROM users WHERE LOWER(username) = LOWER($1)', [username]);
-    return r.rows[0] || null;
+    const r = await dbQuery('SELECT * FROM users WHERE LOWER(username) = LOWER(?)', [username]);
+    return r[0] || null;
 }
 
 async function findUserByPhone(phone) {
-    const r = await pool.query('SELECT * FROM users WHERE phone = $1', [phone]);
-    return r.rows[0] || null;
+    const r = await dbQuery('SELECT * FROM users WHERE phone = ?', [phone]);
+    return r[0] || null;
 }
 
 function formatPhone(phone) {
@@ -127,8 +130,8 @@ function formatPhone(phone) {
 }
 
 async function saveMessage(msg) {
-    await pool.query(`INSERT INTO messages (id, sender, text, to_user, room, file, "isPrivate", type, "callType", "callFrom", "callTo", duration, "callStatus", timestamp, time)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+    await dbQuery(`INSERT INTO messages (id, sender, text, to_user, room, file, isPrivate, type, callType, callFrom, callTo, duration, callStatus, timestamp, time)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [msg.id, msg.sender, msg.text, msg.to_user, msg.room, msg.file, msg.isPrivate, msg.type, msg.callType, msg.callFrom, msg.callTo, msg.duration, msg.callStatus, msg.timestamp, msg.time]);
 }
 
@@ -190,7 +193,7 @@ app.post('/api/register', async (req, res) => {
     
     const hashedPassword = await bcrypt.hash(password, 10);
     try {
-        await pool.query('INSERT INTO users (id, username, password, phone) VALUES ($1,$2,$3,$4)',
+        await dbQuery('INSERT INTO users (id, username, password, phone) VALUES (?,?,?,?)',
           [Date.now().toString(), username.trim(), hashedPassword, phone ? formatPhone(phone) : null]);
         res.json({ success: true, message: 'Registration successful!' });
     } catch (err) {
@@ -243,18 +246,17 @@ app.post('/api/update-profile', async (req, res) => {
         if (existing) return res.status(400).json({ success: false, message: 'Username exists' });
     }
     
-    await pool.query('UPDATE users SET username = $1 WHERE id = $2', [newUsername.trim(), user.id]);
+    await dbQuery('UPDATE users SET username = ? WHERE id = ?', [newUsername.trim(), user.id]);
     if (newPassword && newPassword.length >= 4) {
         const hashed = await bcrypt.hash(newPassword, 10);
-        await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashed, user.id]);
+        await dbQuery('UPDATE users SET password = ? WHERE id = ?', [hashed, user.id]);
     }
     res.json({ success: true, message: 'Profile updated!' });
 });
 
 app.get('/api/users', async (req, res) => {
-    const r = await pool.query('SELECT id, username, phone FROM users');
-    const users = r.rows.map(u => ({ id: u.id, username: u.username, hasPhone: !!u.phone }));
-    res.json(users);
+    const users = await dbQuery('SELECT id, username, phone FROM users');
+    res.json(users.map(u => ({ id: u.id, username: u.username, hasPhone: !!u.phone })));
 });
 
 app.get('/api/my-phone', async (req, res) => {
@@ -266,36 +268,31 @@ app.get('/api/my-phone', async (req, res) => {
 app.post('/api/match-phones', async (req, res) => {
     const { phones } = req.body;
     if (!phones || !Array.isArray(phones)) return res.json({ matches: {} });
-    const r = await pool.query('SELECT phone, username FROM users WHERE phone IS NOT NULL');
+    const allUsers = await dbQuery('SELECT phone, username FROM users WHERE phone IS NOT NULL');
     const matches = {};
     phones.forEach(suffix => {
         const clean = suffix.replace(/[^\d]/g, '');
         if (clean.length < 6) return;
-        const user = r.rows.find(u => u.phone && u.phone.replace(/[^\d]/g, '').endsWith(clean));
+        const user = allUsers.find(u => u.phone && u.phone.replace(/[^\d]/g, '').endsWith(clean));
         if (user) matches[suffix] = user.username;
     });
     res.json({ matches });
 });
 
-app.get('/api/messages', async (req, res) => {
-    const r = await pool.query('SELECT * FROM messages ORDER BY timestamp');
-    res.json(r.rows);
-});
-
 app.get('/api/private-messages/:user', async (req, res) => {
     const currentUser = req.session.user ? req.session.user.username : req.params.user;
     const otherUser = req.params.user;
-    const r = await pool.query(`SELECT * FROM messages WHERE "isPrivate" = 1 AND (
-      (sender = $1 AND to_user = $2) OR (sender = $2 AND to_user = $1)
-    ) ORDER BY timestamp`, [currentUser, otherUser]);
-    res.json(r.rows);
+    const messages = await dbQuery(`SELECT * FROM messages WHERE isPrivate = 1 AND (
+      (sender = ? AND to_user = ?) OR (sender = ? AND to_user = ?)
+    ) ORDER BY timestamp`, [currentUser, otherUser, otherUser, currentUser]);
+    res.json(messages);
 });
 
 app.get('/api/call-history', async (req, res) => {
     const currentUser = req.session.user ? req.session.user.username : null;
     if (!currentUser) return res.status(401).json({ error: 'Not logged in' });
-    const r = await pool.query(`SELECT * FROM messages WHERE type = 'call' AND ("callFrom" = $1 OR "callTo" = $1) ORDER BY timestamp DESC LIMIT 50`, [currentUser]);
-    res.json(r.rows);
+    const calls = await dbQuery(`SELECT * FROM messages WHERE type = 'call' AND (callFrom = ? OR callTo = ?) ORDER BY timestamp DESC LIMIT 50`, [currentUser, currentUser]);
+    res.json(calls);
 });
 
 app.post('/api/upload', upload.single('file'), (req, res) => {
@@ -308,7 +305,7 @@ app.post('/api/upload-profilepic', upload.single('file'), async (req, res) => {
     if (req.file) {
         const user = await findUserByUsername(req.session.user.username);
         if (user) {
-            await pool.query('UPDATE users SET "profilePic" = $1 WHERE id = $2', [req.file.filename, user.id]);
+            await dbQuery('UPDATE users SET profilePic = ? WHERE id = ?', [req.file.filename, user.id]);
             res.json({ success: true, filename: req.file.filename });
         } else res.status(400).json({ success: false, message: 'User not found' });
     } else res.status(400).json({ success: false, message: 'Upload failed' });
@@ -323,22 +320,21 @@ app.get('/api/profile-pic/:username', async (req, res) => {
 // ── Contacts API ──
 app.get('/api/contacts', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
-    const r = await pool.query('SELECT contact, "addedAt" FROM contacts WHERE owner = $1 ORDER BY contact', [req.session.user.username]);
-    res.json(r.rows.map(c => c.contact));
+    const rows = await dbQuery('SELECT contact FROM contacts WHERE owner = ? ORDER BY contact', [req.session.user.username]);
+    res.json(rows.map(c => c.contact));
 });
 
 app.post('/api/contacts/add', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
     const { contact } = req.body;
     if (!contact || contact === req.session.user.username) return res.status(400).json({ error: 'Invalid contact' });
-    // Verify contact exists
-    const exists = await findUserByUsername(contact);
-    if (!exists) return res.status(400).json({ error: 'User not found' });
+    if (!findUserByUsername(contact)) return res.status(400).json({ error: 'User not found' });
     try {
-        await pool.query('INSERT INTO contacts (owner, contact) VALUES ($1, $2)', [req.session.user.username, contact]);
+        await dbQuery('INSERT INTO contacts (owner, contact) VALUES (?, ?)', [req.session.user.username, contact]);
+        saveDb();
         res.json({ success: true });
     } catch (e) {
-        if (e.code === '23505') return res.status(400).json({ error: 'Already in contacts' });
+        if (e.message && e.message.includes('UNIQUE')) return res.status(400).json({ error: 'Already in contacts' });
         res.status(500).json({ error: 'Failed to add contact' });
     }
 });
@@ -346,7 +342,8 @@ app.post('/api/contacts/add', async (req, res) => {
 app.post('/api/contacts/remove', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
     const { contact } = req.body;
-    await pool.query('DELETE FROM contacts WHERE owner = $1 AND contact = $2', [req.session.user.username, contact]);
+    await dbQuery('DELETE FROM contacts WHERE owner = ? AND contact = ?', [req.session.user.username, contact]);
+    saveDb();
     res.json({ success: true });
 });
 
@@ -358,58 +355,52 @@ app.post('/api/promote', async (req, res) => {
     if (secret !== ADMIN_SECRET) return res.status(403).json({ error: 'Invalid secret' });
     const user = await findUserByUsername(username);
     if (!user) return res.status(400).json({ error: 'User not found' });
-    await pool.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', user.id]);
+    await dbQuery('UPDATE users SET role = ? WHERE id = ?', ['admin', user.id]);
+    saveDb();
     res.json({ success: true, message: username + ' is now admin' });
 });
 
-function requireAdmin(req, res, next) {
+async function requireAdmin(req, res, next) {
     if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
-    pool.query('SELECT role FROM users WHERE username = $1', [req.session.user.username]).then(r => {
-        if (r.rows.length === 0 || r.rows[0].role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    try {
+        const rows = await dbQuery('SELECT role FROM users WHERE username = ?', [req.session.user.username]);
+        if (rows.length === 0 || rows[0].role !== 'admin') return res.status(403).json({ error: 'Admin only' });
         next();
-    }).catch(() => res.status(500).json({ error: 'Server error' }));
+    } catch (e) { res.status(500).json({ error: 'Server error' }); }
 }
 
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
-    const r = await pool.query('SELECT id, username, phone, role, "registeredAt" FROM users ORDER BY username');
-    res.json(r.rows);
+    const users = await dbQuery('SELECT id, username, phone, role, registeredAt FROM users ORDER BY username');
+    res.json(users);
 });
 
 app.get('/api/admin/user/:username', requireAdmin, async (req, res) => {
     const user = await findUserByUsername(req.params.username);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    // Get user's contacts
-    const contacts = (await pool.query('SELECT contact FROM contacts WHERE owner = $1', [user.username])).rows.map(c => c.contact);
-    // Get user's private messages
-    const messages = (await pool.query(`SELECT * FROM messages WHERE "isPrivate" = 1 AND (sender = $1 OR to_user = $1) ORDER BY timestamp`, [user.username])).rows;
-    // Get user's call history
-    const calls = (await pool.query(`SELECT * FROM messages WHERE type = 'call' AND ("callFrom" = $1 OR "callTo" = $1) ORDER BY timestamp DESC LIMIT 50`, [user.username])).rows;
+    const contacts = (await dbQuery('SELECT contact FROM contacts WHERE owner = ?', [user.username])).map(c => c.contact);
+    const messages = await dbQuery('SELECT * FROM messages WHERE isPrivate = 1 AND (sender = ? OR to_user = ?) ORDER BY timestamp', [user.username, user.username]);
+    const calls = await dbQuery("SELECT * FROM messages WHERE type = 'call' AND (callFrom = ? OR callTo = ?) ORDER BY timestamp DESC LIMIT 50", [user.username, user.username]);
     res.json({ user: { id: user.id, username: user.username, phone: user.phone, role: user.role, profilePic: user.profilePic, registeredAt: user.registeredAt }, contacts, messages, calls });
 });
 
 app.get('/api/admin/messages', requireAdmin, async (req, res) => {
-    const r = await pool.query('SELECT * FROM messages ORDER BY timestamp DESC LIMIT 500');
-    res.json(r.rows);
+    const msgs = await dbQuery('SELECT * FROM messages ORDER BY timestamp DESC LIMIT 500');
+    res.json(msgs);
 });
 
 app.get('/api/admin/stats', requireAdmin, async (req, res) => {
-    const userCount = (await pool.query('SELECT COUNT(*) FROM users')).rows[0].count;
-    const msgCount = (await pool.query('SELECT COUNT(*) FROM messages')).rows[0].count;
-    const callCount = (await pool.query('SELECT COUNT(*) FROM messages WHERE type = \'call\'')).rows[0].count;
+    const userCount = (await dbQuery('SELECT COUNT(*) as cnt FROM users'))[0].cnt;
+    const msgCount = (await dbQuery('SELECT COUNT(*) as cnt FROM messages'))[0].cnt;
+    const callCount = (await dbQuery("SELECT COUNT(*) as cnt FROM messages WHERE type = 'call'"))[0].cnt;
     const onlineCount = onlineUsers.size;
     res.json({ userCount, msgCount, callCount, onlineCount });
 });
 
-// Remove the insecure /api/messages (all messages) endpoint
-// The frontend does not use it; replace with per-user version
 app.get('/api/messages', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
-    // Return only messages relevant to this user
     const currentUser = req.session.user.username;
-    const r = await pool.query(`SELECT * FROM messages WHERE sender = $1 OR to_user = $1 OR room IN (
-      SELECT DISTINCT room FROM messages WHERE sender = $1 OR to_user = $1 OR room IS NOT NULL
-    ) ORDER BY timestamp DESC LIMIT 200`, [currentUser]);
-    res.json(r.rows);
+    const msgs = await dbQuery('SELECT * FROM messages WHERE sender = ? OR to_user = ? ORDER BY timestamp DESC LIMIT 200', [currentUser, currentUser]);
+    res.json(msgs);
 });
 
 const rooms = new Map();
@@ -443,8 +434,7 @@ io.on('connection', (socket) => {
         if (!rooms.has(newRoom)) rooms.set(newRoom, new Set());
         rooms.get(newRoom).add(socket.id);
         const roomUsers = Array.from(onlineUsers.entries()).filter(([, u]) => u.room === newRoom).map(([id, u]) => [id, u.username]);
-        const r = await pool.query('SELECT * FROM messages WHERE room = $1 AND "isPrivate" = 0 ORDER BY timestamp DESC LIMIT 100', [newRoom]);
-        const roomMessages = r.rows.reverse();
+        const roomMessages = (await dbQuery('SELECT * FROM messages WHERE room = ? AND isPrivate = 0 ORDER BY timestamp DESC LIMIT 100', [newRoom])).reverse();
         io.to(newRoom).emit('user joined', { id: socket.id, name: username, room: newRoom });
         io.to(newRoom).emit('update users', roomUsers);
         socket.emit('room joined', { room: newRoom, messages: roomMessages });
@@ -510,12 +500,12 @@ io.on('connection', (socket) => {
         if (!user) return;
         let targetRoom = data.chatType === 'private' ? user.room : data.room;
         if (data.type === 'everyone') {
-            let msg = data.msgId ? (await pool.query('SELECT * FROM messages WHERE id = $1', [data.msgId])).rows[0] : null;
+            let msg = data.msgId ? (await dbQuery('SELECT * FROM messages WHERE id = ?', [data.msgId]))[0] : null;
             if (!msg) {
-                msg = (await pool.query('SELECT * FROM messages WHERE sender = $1 AND room = $2 ORDER BY timestamp DESC LIMIT 1', [data.sender, targetRoom])).rows[0];
+                msg = (await dbQuery('SELECT * FROM messages WHERE sender = ? AND room = ? ORDER BY timestamp DESC LIMIT 1', [data.sender, targetRoom]))[0];
             }
             if (msg) {
-                await pool.query('UPDATE messages SET "deletedForEveryone" = 1 WHERE id = $1', [msg.id]);
+                await dbQuery('UPDATE messages SET deletedForEveryone = 1 WHERE id = ?', [msg.id]);
             }
             if (data.chatType === 'private') {
                 onlineUsers.forEach((userData, socketId) => {
@@ -583,7 +573,7 @@ io.on('connection', (socket) => {
     socket.on('call ended', async (data) => {
         const user = onlineUsers.get(socket.id);
         if (!user || !data.callId) return;
-        await pool.query('UPDATE messages SET "callStatus" = $1, duration = $2 WHERE id = $3', [data.status || 'ended', data.duration || 0, data.callId]);
+        await dbQuery('UPDATE messages SET callStatus = ?, duration = ? WHERE id = ?', [data.status || 'ended', data.duration || 0, data.callId]);
         onlineUsers.forEach((userData, socketId) => {
             if (userData.username === (data.to || data.from)) io.to(socketId).emit('call ended', data);
         });
@@ -608,5 +598,5 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log('Server running on port ' + PORT);
-    console.log('Data persisted in PostgreSQL');
+    console.log('Data persisted in SQLite (vchat.db)');
 });
