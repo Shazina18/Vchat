@@ -271,8 +271,20 @@ app.post('/api/update-profile', async (req, res) => {
 });
 
 app.get('/api/users', async (req, res) => {
-    const users = await dbQuery('SELECT id, username, phone FROM users');
-    res.json(users.map(u => ({ id: u.id, username: u.username, hasPhone: !!u.phone })));
+    if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
+    const userRow = (await dbQuery('SELECT role FROM users WHERE username = ?', [req.session.user.username]))[0];
+    if (userRow && userRow.role === 'admin') {
+        const users = await dbQuery('SELECT id, username, phone FROM users');
+        return res.json(users.map(u => ({ id: u.id, username: u.username, hasPhone: !!u.phone })));
+    }
+    // Regular users: return only themselves
+    res.json([{ id: req.session.user.id, username: req.session.user.username }]);
+});
+
+app.get('/api/user-check/:username', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
+    const user = await findUserByUsername(req.params.username);
+    res.json({ exists: !!user, username: user ? user.username : null });
 });
 
 app.get('/api/my-phone', async (req, res) => {

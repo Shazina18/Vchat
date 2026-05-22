@@ -901,7 +901,11 @@ function showChat() {
     setupSidebarTabs();
     loadProfilePic(username);
     updatePrivateChatsListUI();
-    checkAdmin();
+    checkAdmin().then(() => {
+        document.querySelectorAll('#tabs button').forEach(tab => {
+            if (tab.dataset.view === 'users') tab.style.display = isAdmin ? '' : 'none';
+        });
+    });
     
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
@@ -1162,13 +1166,12 @@ addContactBtn.addEventListener('click', async () => {
     }
     
     // Check if user exists by username
-    const usersRes = await fetch('/api/users');
-    const users = await usersRes.json();
-    const userMatch = users.find(u => u.username.toLowerCase() === target.toLowerCase());
+    const checkRes = await fetch('/api/user-check/' + encodeURIComponent(target));
+    const checkData = await checkRes.json();
     
-    if (userMatch) {
-        const ok = await addContactToServer(userMatch.username);
-        if (ok) { searchContactInput.value = ''; alert(userMatch.username + ' added to contacts!'); }
+    if (checkData.exists) {
+        const ok = await addContactToServer(checkData.username);
+        if (ok) { searchContactInput.value = ''; alert(checkData.username + ' added to contacts!'); }
         return;
     }
     
