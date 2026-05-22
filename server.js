@@ -20,11 +20,27 @@ if (USE_PG) {
     pgPool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
     dbQuery = async (sql, params) => {
         try {
-            const isSelect = /^\s*(SELECT|WITH)/i.test(sql.trim());
-            const r = await pgPool.query(sql, params || []);
+            // Convert ? to $1,$2,... for PostgreSQL
+            let idx = 0;
+            const pgSql = sql.replace(/\?/g, () => '$' + (++idx));
+            const isSelect = /^\s*(SELECT|WITH)/i.test(pgSql.trim());
+            const r = await pgPool.query(pgSql, params || []);
             return isSelect ? r.rows : null;
         } catch (e) { console.error('DB error:', e.message); return []; }
     };
+    // Initialize PostgreSQL schema
+    (async () => {
+        try {
+            await pgPool.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, phone TEXT, "profilePic" TEXT, role TEXT DEFAULT 'user', "registeredAt" TIMESTAMP DEFAULT NOW())`);
+            await pgPool.query(`CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, sender TEXT NOT NULL, text TEXT, to_user TEXT, room TEXT, file TEXT, "isPrivate" INTEGER DEFAULT 0, type TEXT DEFAULT 'message', "callType" TEXT, "callFrom" TEXT, "callTo" TEXT, duration INTEGER DEFAULT 0, "callStatus" TEXT, timestamp BIGINT, time TEXT, "deletedForEveryone" INTEGER DEFAULT 0)`);
+            await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room)`);
+            await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_messages_private ON messages(to_user, sender)`);
+            await pgPool.query(`CREATE TABLE IF NOT EXISTS contacts (id SERIAL PRIMARY KEY, owner TEXT NOT NULL, contact TEXT NOT NULL, "addedAt" TIMESTAMP DEFAULT NOW(), UNIQUE(owner, contact))`);
+            await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_contacts_owner ON contacts(owner)`);
+            try { await pgPool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user'`); } catch (_) {}
+            console.log('PostgreSQL schema ready');
+        } catch (e) { console.error('PostgreSQL init error:', e.message); }
+    })();
 } else {
     const DB_PATH = path.join(__dirname, 'vchat.db');
     let sqliteDb;
