@@ -438,6 +438,7 @@ const loginPassword = document.getElementById('login-password');
 const registerUsername = document.getElementById('register-username');
 const registerPassword = document.getElementById('register-password');
 const registerConfirm = document.getElementById('register-confirm');
+const registerEmail = document.getElementById('register-email');
 const loginError = document.getElementById('login-error');
 const registerError = document.getElementById('register-error');
 const messageInput = document.getElementById('message-input');
@@ -587,7 +588,8 @@ registerBtn.addEventListener('click', async () => {
         body: JSON.stringify({ 
             username: user, 
             password: pass,
-            phone: phoneVerified ? registerPhone.value.trim() : null
+            phone: phoneVerified ? registerPhone.value.trim() : null,
+            email: registerEmail.value.trim() || null
         })
     });
     const data = await res.json();
@@ -737,6 +739,7 @@ logoutBtn.addEventListener('click', async () => {
     loginUsername.value = '';
     loginPassword.value = '';
     registerUsername.value = '';
+    registerEmail.value = '';
     registerPassword.value = '';
     registerConfirm.value = '';
     document.getElementById('sidebar').classList.remove('open');

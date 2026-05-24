@@ -31,13 +31,14 @@ if (USE_PG) {
     // Initialize PostgreSQL schema
     (async () => {
         try {
-            await pgPool.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, phone TEXT, "profilePic" TEXT, role TEXT DEFAULT 'user', "registeredAt" TIMESTAMP DEFAULT NOW())`);
+            await pgPool.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, phone TEXT, email TEXT, "profilePic" TEXT, role TEXT DEFAULT 'user', "registeredAt" TIMESTAMP DEFAULT NOW())`);
             await pgPool.query(`CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, sender TEXT NOT NULL, text TEXT, to_user TEXT, room TEXT, file TEXT, "isPrivate" INTEGER DEFAULT 0, type TEXT DEFAULT 'message', "callType" TEXT, "callFrom" TEXT, "callTo" TEXT, duration INTEGER DEFAULT 0, "callStatus" TEXT, timestamp BIGINT, time TEXT, "deletedForEveryone" INTEGER DEFAULT 0)`);
             await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room)`);
             await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_messages_private ON messages(to_user, sender)`);
             await pgPool.query(`CREATE TABLE IF NOT EXISTS contacts (id SERIAL PRIMARY KEY, owner TEXT NOT NULL, contact TEXT NOT NULL, "addedAt" TIMESTAMP DEFAULT NOW(), UNIQUE(owner, contact))`);
             await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_contacts_owner ON contacts(owner)`);
             try { await pgPool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user'`); } catch (_) {}
+            try { await pgPool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT`); } catch (_) {}
             console.log('PostgreSQL schema ready');
         } catch (e) { console.error('PostgreSQL init error:', e.message); }
     })();
@@ -64,13 +65,14 @@ if (USE_PG) {
         if (fs.existsSync(DB_PATH)) data = new Uint8Array(fs.readFileSync(DB_PATH));
         sqliteDb = new SQL.Database(data || undefined);
         // Create tables + indices
-        sqliteDb.run("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, phone TEXT, profilePic TEXT, role TEXT DEFAULT 'user', registeredAt TEXT DEFAULT (datetime('now')))");
+        sqliteDb.run("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, phone TEXT, email TEXT, profilePic TEXT, role TEXT DEFAULT 'user', registeredAt TEXT DEFAULT (datetime('now')))");
         sqliteDb.run("CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, sender TEXT NOT NULL, text TEXT, to_user TEXT, room TEXT, file TEXT, isPrivate INTEGER DEFAULT 0, type TEXT DEFAULT 'message', callType TEXT, callFrom TEXT, callTo TEXT, duration INTEGER DEFAULT 0, callStatus TEXT, timestamp BIGINT, time TEXT, deletedForEveryone INTEGER DEFAULT 0)");
         sqliteDb.run("CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room)");
         sqliteDb.run("CREATE INDEX IF NOT EXISTS idx_messages_private ON messages(to_user, sender)");
         sqliteDb.run("CREATE TABLE IF NOT EXISTS contacts (id INTEGER PRIMARY KEY AUTOINCREMENT, owner TEXT NOT NULL, contact TEXT NOT NULL, addedAt TEXT DEFAULT (datetime('now')), UNIQUE(owner, contact))");
         sqliteDb.run("CREATE INDEX IF NOT EXISTS idx_contacts_owner ON contacts(owner)");
         try { sqliteDb.run("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'"); } catch (_) {}
+        try { sqliteDb.run("ALTER TABLE users ADD COLUMN email TEXT"); } catch (_) {}
         saveDb();
         console.log('SQLite database ready');
     })().catch(err => { console.error('DB init failed:', err); process.exit(1); });
@@ -193,10 +195,11 @@ app.post('/api/verify-otp', (req, res) => {
 });
 
 app.post('/api/register', async (req, res) => {
-    const { username, password, phone } = req.body;
+    const { username, password, phone, email } = req.body;
     if (!username || !password) return res.status(400).json({ success: false, message: 'Username and password required' });
     if (username.length < 3 || username.length > 20) return res.status(400).json({ success: false, message: 'Username 3-20 characters' });
     if (password.length < 4) return res.status(400).json({ success: false, message: 'Password min 4 characters' });
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ success: false, message: 'Invalid email format' });
     
     const existing = await findUserByUsername(username);
     if (existing) return res.status(400).json({ success: false, message: 'Username exists' });
@@ -209,8 +212,8 @@ app.post('/api/register', async (req, res) => {
     
     const hashedPassword = await bcrypt.hash(password, 10);
     try {
-        await dbQuery('INSERT INTO users (id, username, password, phone) VALUES (?,?,?,?)',
-          [Date.now().toString(), username.trim(), hashedPassword, phone ? formatPhone(phone) : null]);
+        dbQuery('INSERT INTO users (id, username, password, phone, email) VALUES (?,?,?,?,?)',
+          [Date.now().toString(), username.trim(), hashedPassword, phone ? formatPhone(phone) : null, email || null]);
         res.json({ success: true, message: 'Registration successful!' });
     } catch (err) {
         console.error('Register error:', err);
@@ -233,7 +236,7 @@ app.post('/api/login', async (req, res) => {
     if (!isMatch) return res.status(400).json({ success: false, message: 'Invalid username/phone or password' });
     
     req.session.user = { id: user.id, username: user.username, role: user.role || 'user' };
-    res.json({ success: true, username: user.username, phone: user.phone || null, role: user.role || 'user' });
+    res.json({ success: true, username: user.username, phone: user.phone || null, email: user.email || null, role: user.role || 'user' });
 });
 
 app.post('/api/logout', (req, res) => {
