@@ -1432,8 +1432,33 @@ fileInput.addEventListener('change', async () => {
         const data = await res.json();
         
         if (data.success) {
-            const text = `<a href="/uploads/${data.filename}" target="_blank">📎 ${file.name}</a>`;
-            socket.emit('chat message', { sender: username, text: text, file: data.filename });
+            const isImage = file.type.startsWith('image/');
+            const isVideo = file.type.startsWith('video/');
+            const isAudio = file.type.startsWith('audio/');
+            let link;
+            if (isImage) {
+                link = `<img src="/uploads/${data.filename}" alt="${file.name}" style="max-width:250px;max-height:250px;border-radius:8px;cursor:pointer" onclick="window.open('/uploads/${data.filename}')">`;
+            } else if (isVideo) {
+                link = `<video src="/uploads/${data.filename}" controls style="max-width:250px;max-height:250px;border-radius:8px"></video>`;
+            } else if (isAudio) {
+                link = `<audio controls src="/uploads/${data.filename}"></audio>`;
+            } else {
+                link = `<a href="/uploads/${data.filename}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--bg-input);border-radius:8px;text-decoration:none;color:var(--primary)">📎 ${file.name}</a>`;
+            }
+            
+            if (currentChatType === 'private' && activePrivateChat) {
+                socket.emit('private message', { to: activePrivateChat, message: link, file: data.filename });
+                const msgData = { sender: username, text: link, time: getTime(), file: data.filename };
+                if (privateChats.has(activePrivateChat)) {
+                    privateChats.get(activePrivateChat).push(msgData);
+                } else {
+                    privateChats.set(activePrivateChat, [msgData]);
+                }
+                addMessage(username, link, true, getTime(), true, false, false, false, false, null, null, data.filename, 'sent');
+            } else {
+                socket.emit('chat message', { sender: username, text: link, file: data.filename });
+                addMessage(username, link, true, getTime(), false, false, false, false, data.filename, null, null, data.filename, 'sent');
+            }
         }
     } catch (err) {
         console.error('Upload failed:', err);
@@ -1653,10 +1678,12 @@ socket.on('private message', (data) => {
         addContactToServer(otherUser);
     }
     
+    const previewText = data.text.replace(/<[^>]*>/g, '').substring(0, 30) || (data.file ? '📎 File' : '');
+    
     if (!privateChats.has(otherUser)) {
         privateChats.set(otherUser, []);
     }
-    privateChats.get(otherUser).push({ sender: data.sender, text: data.text, time: data.time });
+    privateChats.get(otherUser).push({ sender: data.sender, text: data.text, time: data.time, file: data.file });
     
     const privateChatsList = document.getElementById('private-chats-list');
     let existingChat = Array.from(privateChatsList.children).find(li => li.dataset.user === otherUser);
@@ -1664,12 +1691,12 @@ socket.on('private message', (data) => {
         const li = document.createElement('li');
         li.className = 'chat-item';
         li.dataset.user = otherUser;
-        li.innerHTML = `<div class="chat-avatar">${otherUser.charAt(0).toUpperCase()}</div><div class="chat-info"><div class="chat-info-top"><span class="chat-name">@${otherUser}</span><span class="chat-time"></span></div><div class="chat-preview">${data.text.substring(0, 30)}${data.text.length > 30 ? '...' : ''}</div></div>`;
+        li.innerHTML = `<div class="chat-avatar">${otherUser.charAt(0).toUpperCase()}</div><div class="chat-info"><div class="chat-info-top"><span class="chat-name">@${otherUser}</span><span class="chat-time"></span></div><div class="chat-preview">${previewText}</div></div>`;
         li.onclick = () => openPrivateChat(otherUser);
         privateChatsList.appendChild(li);
         updatePrivateChatsListUI();
     } else {
-        existingChat.querySelector('.chat-preview').textContent = data.text.substring(0, 30) + (data.text.length > 30 ? '...' : '');
+        existingChat.querySelector('.chat-preview').textContent = previewText;
     }
     
     if (currentChatType === 'private' && activePrivateChat === otherUser && !isOwn) {

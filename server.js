@@ -571,7 +571,7 @@ io.on('connection', (socket) => {
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             timestamp: Date.now(),
             isPrivate: 1,
-            file: null,
+            file: data.file || null,
             type: 'message',
             callType: null, callFrom: null, callTo: null, duration: 0, callStatus: null
         };
