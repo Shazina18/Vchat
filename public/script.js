@@ -187,41 +187,24 @@ async function viewUserData(username) {
     window.addEventListener('orientationchange', function() { setTimeout(setAppHeight, 300); });
 })();
 
-// Welcome video - hide after delay and on skip/video end, shown only once
+// Welcome video - global skip function
+function skipWelcome() {
+    var el = document.getElementById('welcome-video');
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+    var as = document.getElementById('auth-screen');
+    if (as) { as.style.display = 'flex'; }
+    try { localStorage.setItem('vchat_welcome_seen', '1'); } catch(e) {}
+}
+
 (function() {
     if (localStorage.getItem('vchat_welcome_seen')) {
-        var els = document.getElementById('welcome-video');
-        if (els) els.style.display = 'none';
-        var as = document.getElementById('auth-screen');
-        if (as) { as.style.display = 'flex'; as.classList.remove('hidden'); }
+        skipWelcome();
         return;
     }
-    
-    var overlay = document.getElementById('welcome-video');
-    var authScreen = document.getElementById('auth-screen');
-    if (!overlay) return;
-    
     var video = document.getElementById('welcome-video-player');
-    var btn = document.getElementById('skip-video');
-    
-    function hide() {
-        try {
-            if (!overlay || overlay.style.display === 'none') return;
-            document.body.removeChild(overlay);
-        } catch(e) {
-            overlay.style.display = 'none';
-        }
-        if (authScreen) {
-            authScreen.style.display = 'flex';
-            authScreen.classList.remove('hidden');
-        }
-        localStorage.setItem('vchat_welcome_seen', '1');
-    }
-    
-    if (video) video.addEventListener('ended', hide);
-    if (btn) btn.addEventListener('click', function(e) { e.preventDefault(); hide(); });
-    setTimeout(hide, 4000);
-    setTimeout(hide, 6000);
+    if (video) video.addEventListener('ended', skipWelcome);
+    setTimeout(skipWelcome, 5000);
+    setTimeout(skipWelcome, 7000);
 })();
 
 let username = '';
