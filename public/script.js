@@ -897,7 +897,7 @@ function showChat() {
     logoutBtn.classList.remove('hidden');
     
     console.log('Joining room:', currentRoom, 'as', username);
-    socket.emit('join', { username: username, room: currentRoom });
+    socket.emit('join', { username: username, room: currentRoom, role: isAdmin ? 'admin' : 'user' });
     
     loadContactsFromServer();
     loadAllUsers();
@@ -1550,7 +1550,7 @@ roomList.addEventListener('click', (e) => {
             const tabs = document.querySelectorAll('#tabs button');
             tabs[0].click();
             
-            socket.emit('join room', { username: username, room: room });
+            socket.emit('join room', { username: username, room: room, role: isAdmin ? 'admin' : 'user' });
         }
     }
 });
@@ -1562,23 +1562,17 @@ createRoomBtn.addEventListener('click', () => {
         const li = document.createElement('li');
         li.setAttribute('data-room', room);
         li.textContent = '#' + room;
-        roomList.appendChild(li);
-        
-        currentRoom = room;
-        currentChatType = 'room';
-        activePrivateChat = null;
-        currentRoomEl.textContent = '#' + room;
-        chatTypeEl.textContent = 'Room';
-        
-        const headerAvatar = document.getElementById('header-avatar');
-        if (headerAvatar) headerAvatar.textContent = room.charAt(0).toUpperCase();
-        
-        messagesContainer.innerHTML = '';
-        
-        const tabs = document.querySelectorAll('#tabs button');
-        tabs[0].click();
-        
-        socket.emit('join room', { username: username, room: room });
+
+        // Create a join button so clicking the room actually joins
+        li.addEventListener('click', (e) => {
+            const room = li.getAttribute('data-room');
+            document.querySelector('#room-list li.active')?.classList.remove('active');
+            li.classList.add('active');
+            currentRoom = room;
+            messagesContainer.innerHTML = '';
+            const tabs = document.querySelectorAll('#tabs button');
+            tabs[0].click();
+            socket.emit('join room', { username: username, room: room, role: isAdmin ? 'admin' : 'user' });
         newRoomName.value = '';
     }
 });

@@ -443,30 +443,32 @@ io.on('connection', (socket) => {
     socket.on('join', (data) => {
         const username = data.username;
         const room = data.room || 'general';
+        const role = data.role || 'user';
         socket.join(room);
-        onlineUsers.set(socket.id, { username, room });
+        onlineUsers.set(socket.id, { username, room, role });
         if (!rooms.has(room)) rooms.set(room, new Set());
         rooms.get(room).add(socket.id);
         const roomUsers = Array.from(onlineUsers.entries()).filter(([, u]) => u.room === room).map(([id, u]) => [id, u.username]);
-        io.to(room).emit('user joined', { id: socket.id, name: username, room });
+        onlineUsers.forEach((u, sid) => { if (u.role === 'admin') io.to(sid).emit('user joined', { id: socket.id, name: username, room }); });
         io.to(room).emit('update users', roomUsers);
     });
 
     socket.on('join room', async (data) => {
         const username = data.username;
         const newRoom = data.room;
+        const role = data.role || 'user';
         const user = onlineUsers.get(socket.id);
         if (user) {
             socket.leave(user.room);
             if (rooms.has(user.room)) rooms.get(user.room).delete(socket.id);
         }
         socket.join(newRoom);
-        onlineUsers.set(socket.id, { username, room: newRoom });
+        onlineUsers.set(socket.id, { username, room: newRoom, role });
         if (!rooms.has(newRoom)) rooms.set(newRoom, new Set());
         rooms.get(newRoom).add(socket.id);
         const roomUsers = Array.from(onlineUsers.entries()).filter(([, u]) => u.room === newRoom).map(([id, u]) => [id, u.username]);
         const roomMessages = (await dbQuery('SELECT * FROM messages WHERE room = ? AND isPrivate = 0 ORDER BY timestamp DESC LIMIT 100', [newRoom])).reverse();
-        io.to(newRoom).emit('user joined', { id: socket.id, name: username, room: newRoom });
+        onlineUsers.forEach((u, sid) => { if (u.role === 'admin') io.to(sid).emit('user joined', { id: socket.id, name: username, room: newRoom }); });
         io.to(newRoom).emit('update users', roomUsers);
         socket.emit('room joined', { room: newRoom, messages: roomMessages });
     });
@@ -620,7 +622,7 @@ io.on('connection', (socket) => {
         const user = onlineUsers.get(socket.id);
         if (user) {
             if (rooms.has(user.room)) rooms.get(user.room).delete(socket.id);
-            io.to(user.room).emit('user left', { id: socket.id, name: user.username });
+            onlineUsers.forEach((u, sid) => { if (u.role === 'admin') io.to(sid).emit('user left', { id: socket.id, name: user.username }); });
         }
         onlineUsers.delete(socket.id);
     });
