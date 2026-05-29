@@ -187,55 +187,41 @@ async function viewUserData(username) {
     window.addEventListener('orientationchange', function() { setTimeout(setAppHeight, 300); });
 })();
 
-// Welcome video - bulletproof inline approach
+// Welcome video - hide after delay and on skip/video end, shown only once
 (function() {
-    const overlay = document.getElementById('welcome-video');
-    if (!overlay) return;
-    
-    const video = document.getElementById('welcome-video-player');
-    const btn = document.getElementById('skip-video');
-    const authScreen = document.getElementById('auth-screen');
-    
-    overlay.style.position = 'fixed';
-    overlay.style.top = '0';
-    overlay.style.left = '0';
-    overlay.style.width = '100vw';
-    overlay.style.height = '100vh';
-    overlay.style.zIndex = '100000';
-    overlay.style.background = '#000';
-    overlay.style.display = 'flex';
-    overlay.style.alignItems = 'center';
-    overlay.style.justifyContent = 'center';
-    
-    if (authScreen) authScreen.style.display = 'none';
-    if (video) video.play().catch(function() {});
-    
-    function hide() {
-        overlay.style.display = 'none';
-        if (authScreen) authScreen.style.display = 'flex';
+    if (localStorage.getItem('vchat_welcome_seen')) {
+        var els = document.getElementById('welcome-video');
+        if (els) els.style.display = 'none';
+        var as = document.getElementById('auth-screen');
+        if (as) { as.style.display = 'flex'; as.classList.remove('hidden'); }
+        return;
     }
     
-    if (btn) {
-        btn.style.position = 'absolute';
-        btn.style.top = '20px';
-        btn.style.right = '20px';
-        btn.style.zIndex = '100001';
-        btn.style.padding = '10px 20px';
-        btn.style.background = 'rgba(255,255,255,0.9)';
-        btn.style.border = 'none';
-        btn.style.borderRadius = '20px';
-        btn.style.cursor = 'pointer';
-        btn.style.fontWeight = '600';
-        btn.style.fontSize = '14px';
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            hide();
-        });
+    var overlay = document.getElementById('welcome-video');
+    var authScreen = document.getElementById('auth-screen');
+    if (!overlay) return;
+    
+    var video = document.getElementById('welcome-video-player');
+    var btn = document.getElementById('skip-video');
+    
+    function hide() {
+        try {
+            if (!overlay || overlay.style.display === 'none') return;
+            document.body.removeChild(overlay);
+        } catch(e) {
+            overlay.style.display = 'none';
+        }
+        if (authScreen) {
+            authScreen.style.display = 'flex';
+            authScreen.classList.remove('hidden');
+        }
+        localStorage.setItem('vchat_welcome_seen', '1');
     }
     
     if (video) video.addEventListener('ended', hide);
-    setTimeout(hide, 3000);
+    if (btn) btn.addEventListener('click', function(e) { e.preventDefault(); hide(); });
+    setTimeout(hide, 4000);
+    setTimeout(hide, 6000);
 })();
 
 let username = '';
