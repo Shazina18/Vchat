@@ -1,4 +1,5 @@
-const socket = io();
+var socket;
+try { socket = io(); } catch(e) { console.error('Socket.io init failed:', e); }
 
 // ── Admin Panel ──
 
@@ -218,8 +219,10 @@ const onlineUsers = new Map();
 const privateChats = new Map();
 let selectionMode = false;
 let selectedMessages = new Set();
-let starredMessages = JSON.parse(localStorage.getItem('starredMessages') || '[]');
-let unreadCounts = JSON.parse(localStorage.getItem('unreadCounts') || '{}');
+let starredMessages = [];
+let unreadCounts = {};
+try { starredMessages = JSON.parse(localStorage.getItem('starredMessages') || '[]'); } catch(e) { starredMessages = []; }
+try { unreadCounts = JSON.parse(localStorage.getItem('unreadCounts') || '{}'); } catch(e) { unreadCounts = {}; }
 let myContacts = [];
 let isAdmin = false;
 
