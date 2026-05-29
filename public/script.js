@@ -53,6 +53,21 @@ function _handleRegister() {
     .catch(function(){ if(err) err.textContent='Network error. Try again.'; });
 }
 
+// Hoisted auth form tabs - backup in case later code errors
+try {
+document.querySelectorAll('.tab-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        var tab = btn.dataset.tab;
+        var lf = document.getElementById('login-form');
+        var rf = document.getElementById('register-form');
+        if (tab === 'login') { if(lf) lf.classList.remove('hidden'); if(rf) rf.classList.add('hidden'); }
+        else { if(lf) lf.classList.add('hidden'); if(rf) rf.classList.remove('hidden'); }
+    });
+});
+} catch(e) {}
+
 // ── Admin Panel ──
 
 function showAdminPanelBtn() {
