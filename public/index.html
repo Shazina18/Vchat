@@ -9,7 +9,7 @@
 </head>
 <body class="light">
     <div id="welcome-video">
-        <button id="skip-video" onclick="skipWelcome()">Skip →</button>
+        <button id="skip-video" onclick="document.getElementById('welcome-video').style.display='none';document.getElementById('auth-screen').style.display='flex';">Skip →</button>
         <video id="welcome-video-player" autoplay muted playsinline>
             <source src="/Vchat.mp4" type="video/mp4">
         </video>
