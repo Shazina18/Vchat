@@ -28,7 +28,7 @@
             <form id="login-form" class="auth-form" autocomplete="on">
                 <input type="text" id="login-username" placeholder="Username or phone number" maxlength="30" autocomplete="username" inputmode="text">
                 <input type="password" id="login-password" placeholder="Password" autocomplete="current-password">
-                <button id="login-btn" type="button">Sign In</button>
+                <button id="login-btn" type="button" onclick="_handleLogin()">Sign In</button>
                 <p class="error" id="login-error"></p>
             </form>
             
@@ -48,7 +48,7 @@
                     </div>
                     <p id="otp-status" class="status-msg"></p>
                 </div>
-                <button id="register-btn" type="button">Create Account</button>
+                <button id="register-btn" type="button" onclick="_handleRegister()">Create Account</button>
                 <p class="error" id="register-error"></p>
             </form>
         </div>

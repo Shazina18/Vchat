@@ -1,6 +1,58 @@
 var socket;
 try { socket = io(); } catch(e) { console.error('Socket.io init failed:', e); }
 
+// Hoisted auth handlers - defined early so HTML onclick works even if later code errors
+function _handleLogin() {
+    var user = document.getElementById('login-username');
+    var pass = document.getElementById('login-password');
+    var err = document.getElementById('login-error');
+    if (!user || !pass) return;
+    user = user.value.trim();
+    pass = pass.value;
+    if (err) err.textContent = '';
+    if (!user || !pass) { if (err) err.textContent = 'Username and password required'; return; }
+    fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:user, password:pass}) })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+        if (data.success) {
+            username = data.username;
+            if (data.role === 'admin') { isAdmin = true; if(typeof showAdminPanelBtn==='function') showAdminPanelBtn(); }
+            if(typeof showChat==='function') showChat();
+        } else {
+            if (err) err.textContent = data.message;
+        }
+    })
+    .catch(function(){ if(err) err.textContent='Connection error. Try again.'; });
+}
+
+function _handleRegister() {
+    var user = document.getElementById('register-username');
+    var pass = document.getElementById('register-password');
+    var confirm = document.getElementById('register-confirm');
+    var email = document.getElementById('register-email');
+    var err = document.getElementById('register-error');
+    if (!user || !pass || !confirm) return;
+    user = user.value.trim();
+    pass = pass.value;
+    var conf = confirm.value;
+    if (err) err.textContent = '';
+    if (!user || !pass || !conf) { if (err) err.textContent = 'All fields required'; return; }
+    if (pass !== conf) { if (err) err.textContent = 'Passwords do not match'; return; }
+    var emailVal = email ? email.value.trim() : null;
+    fetch('/api/register', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:user, password:pass, phone:null, email:emailVal}) })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+        if (data.success) {
+            alert('Registration successful! Please login.');
+            var tabs = document.querySelectorAll('.tab-btn');
+            if (tabs && tabs[0]) tabs[0].click();
+        } else {
+            if (err) err.textContent = data.message;
+        }
+    })
+    .catch(function(){ if(err) err.textContent='Network error. Try again.'; });
+}
+
 // ── Admin Panel ──
 
 function showAdminPanelBtn() {
@@ -174,6 +226,7 @@ async function viewUserData(username) {
 }
 
 // Fix mobile viewport height (handles address bar AND keyboard on iOS)
+try {
 (function() {
     function setAppHeight() {
         var h = window.innerHeight;
@@ -187,6 +240,7 @@ async function viewUserData(username) {
     window.addEventListener('resize', setAppHeight);
     window.addEventListener('orientationchange', function() { setTimeout(setAppHeight, 300); });
 })();
+} catch(e) {}
 
 // Welcome video - global skip function
 function skipWelcome() {
@@ -197,8 +251,10 @@ function skipWelcome() {
     try { localStorage.setItem('vchat_welcome_seen', '1'); } catch(e) {}
 }
 
+try {
 (function() {
-    if (localStorage.getItem('vchat_welcome_seen')) {
+    try { var seen = localStorage.getItem('vchat_welcome_seen'); } catch(e) { var seen = null; }
+    if (seen) {
         skipWelcome();
         return;
     }
@@ -207,8 +263,9 @@ function skipWelcome() {
     setTimeout(skipWelcome, 5000);
     setTimeout(skipWelcome, 7000);
 })();
+} catch(e) {}
 
-let username = '';
+var username = '';
 
 const authScreen = document.getElementById('auth-screen');
 let currentRoom = 'general';
@@ -224,7 +281,7 @@ let unreadCounts = {};
 try { starredMessages = JSON.parse(localStorage.getItem('starredMessages') || '[]'); } catch(e) { starredMessages = []; }
 try { unreadCounts = JSON.parse(localStorage.getItem('unreadCounts') || '{}'); } catch(e) { unreadCounts = {}; }
 let myContacts = [];
-let isAdmin = false;
+var isAdmin = false;
 
 async function loadContactsFromServer() {
     try {
