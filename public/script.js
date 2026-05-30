@@ -1,6 +1,18 @@
 var socket;
 try { socket = io(); } catch(e) { console.error('Socket.io init failed:', e); }
 
+function requestNotifPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+}
+
+function sendNotif(title, body) {
+    if ('Notification' in window && Notification.permission === 'granted' && (!document.hasFocus() || document.hidden)) {
+        new Notification(title, { body: body, icon: '/favicon.ico' });
+    }
+}
+
 // Hoisted auth handlers - defined early so HTML onclick works even if later code errors
 function _handleLogin() {
     var u = document.getElementById('login-username');
@@ -904,6 +916,8 @@ function showChat() {
     chatScreen.classList.remove('hidden');
     logoutBtn.classList.remove('hidden');
     
+    requestNotifPermission();
+    
     console.log('Joining room:', currentRoom, 'as', username);
     socket.emit('join', { username: username, room: currentRoom, role: isAdmin ? 'admin' : 'user' });
     
@@ -1670,6 +1684,7 @@ socket.on('chat message', (data) => {
     const isOwn = data.sender === username;
     if (!isOwn) {
         addMessage(data.sender, data.text, isOwn, data.time);
+        sendNotif(data.sender, data.text.replace(/<[^>]*>/g, '').substring(0, 100));
     }
 });
 
@@ -1708,6 +1723,7 @@ socket.on('private message', (data) => {
     } else if (!isOwn) {
         const count = getUnreadCount(otherUser) + 1;
         setUnreadCount(otherUser, count);
+        sendNotif('💬 ' + otherUser, data.text.replace(/<[^>]*>/g, '').substring(0, 100) || (data.file ? '📎 Sent a file' : ''));
     }
 });
 
