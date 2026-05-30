@@ -3,42 +3,42 @@ try { socket = io(); } catch(e) { console.error('Socket.io init failed:', e); }
 
 // Hoisted auth handlers - defined early so HTML onclick works even if later code errors
 function _handleLogin() {
-    var user = document.getElementById('login-username');
-    var pass = document.getElementById('login-password');
-    var err = document.getElementById('login-error');
-    if (!user || !pass) return;
-    user = user.value.trim();
-    pass = pass.value;
-    if (err) err.textContent = '';
-    if (!user || !pass) { if (err) err.textContent = 'Username and password required'; return; }
+    var u = document.getElementById('login-username');
+    var p = document.getElementById('login-password');
+    var e = document.getElementById('login-error');
+    if (!u || !p) return;
+    var user = u.value.trim();
+    var pass = p.value;
+    if (e) e.textContent = '';
+    if (!user || !pass) { if (e) e.textContent = 'Username and password required'; return; }
     fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:user, password:pass}) })
     .then(function(r){ return r.json(); })
     .then(function(data){
         if (data.success) {
             username = data.username;
-            if (data.role === 'admin') { isAdmin = true; if(typeof showAdminPanelBtn==='function') showAdminPanelBtn(); }
-            if(typeof showChat==='function') showChat();
+            if (data.role === 'admin') isAdmin = true;
+            if (typeof showChat === 'function') showChat();
         } else {
-            if (err) err.textContent = data.message;
+            if (e) e.textContent = data.message;
         }
     })
-    .catch(function(){ if(err) err.textContent='Connection error. Try again.'; });
+    .catch(function(){ if(e) e.textContent='Connection error. Try again.'; });
 }
 
 function _handleRegister() {
-    var user = document.getElementById('register-username');
-    var pass = document.getElementById('register-password');
-    var confirm = document.getElementById('register-confirm');
-    var email = document.getElementById('register-email');
-    var err = document.getElementById('register-error');
-    if (!user || !pass || !confirm) return;
-    user = user.value.trim();
-    pass = pass.value;
-    var conf = confirm.value;
-    if (err) err.textContent = '';
-    if (!user || !pass || !conf) { if (err) err.textContent = 'All fields required'; return; }
-    if (pass !== conf) { if (err) err.textContent = 'Passwords do not match'; return; }
-    var emailVal = email ? email.value.trim() : null;
+    var u = document.getElementById('register-username');
+    var p = document.getElementById('register-password');
+    var c = document.getElementById('register-confirm');
+    var em = document.getElementById('register-email');
+    var er = document.getElementById('register-error');
+    if (!u || !p || !c) return;
+    var user = u.value.trim();
+    var pass = p.value;
+    var conf = c.value;
+    if (er) er.textContent = '';
+    if (!user || !pass || !conf) { if (er) er.textContent = 'All fields required'; return; }
+    if (pass !== conf) { if (er) er.textContent = 'Passwords do not match'; return; }
+    var emailVal = em ? em.value.trim() : null;
     fetch('/api/register', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:user, password:pass, phone:null, email:emailVal}) })
     .then(function(r){ return r.json(); })
     .then(function(data){
@@ -47,10 +47,10 @@ function _handleRegister() {
             var tabs = document.querySelectorAll('.tab-btn');
             if (tabs && tabs[0]) tabs[0].click();
         } else {
-            if (err) err.textContent = data.message;
+            if (er) er.textContent = data.message;
         }
     })
-    .catch(function(){ if(err) err.textContent='Network error. Try again.'; });
+    .catch(function(){ if(er) er.textContent='Network error. Try again.'; });
 }
 
 // Hoisted auth form tabs - backup in case later code errors
@@ -568,48 +568,12 @@ tabBtns.forEach(btn => {
     });
 });
 
-// Login
-loginBtn.addEventListener('click', loginHandler);
-loginForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    loginHandler();
-});
-
-async function loginHandler() {
-    const user = loginUsername.value.trim();
-    const pass = loginPassword.value;
-    loginError.textContent = '';
-    
-    if (!user || !pass) {
-        loginError.textContent = 'Username and password required';
-        return;
-    }
-    
-    try {
-        const res = await fetch('/api/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: user, password: pass })
-        });
-        const data = await res.json();
-        
-        if (data.success) {
-            username = data.username;
-            if (data.role === 'admin') { isAdmin = true; showAdminPanelBtn(); }
-            showChat();
-        } else {
-            loginError.textContent = data.message;
-        }
-    } catch (err) {
-        loginError.textContent = 'Connection error. Try again.';
-    }
-}
-
+// Login (handled via HTML onclick)
 loginPassword.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') loginBtn.click();
+    if (e.key === 'Enter') _handleLogin();
 });
 
-// Register
+// Register (handled via HTML onclick)
 registerBtn.addEventListener('click', async () => {
     const user = registerUsername.value.trim();
     const pass = registerPassword.value;
