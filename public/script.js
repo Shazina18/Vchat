@@ -8,13 +8,14 @@ function requestNotifPermission() {
 }
 
 function sendNotif(title, body) {
-    if ('Notification' in window && Notification.permission === 'granted' && (!document.hasFocus() || document.hidden)) {
+    if ('Notification' in window && Notification.permission === 'granted') {
         new Notification(title, { body: body, icon: '/favicon.ico' });
     }
 }
 
 // Hoisted auth handlers - defined early so HTML onclick works even if later code errors
 function _handleLogin() {
+    requestNotifPermission();
     var u = document.getElementById('login-username');
     var p = document.getElementById('login-password');
     var e = document.getElementById('login-error');
@@ -38,6 +39,7 @@ function _handleLogin() {
 }
 
 function _handleRegister() {
+    requestNotifPermission();
     var u = document.getElementById('register-username');
     var p = document.getElementById('register-password');
     var c = document.getElementById('register-confirm');
@@ -916,10 +918,9 @@ function showChat() {
     chatScreen.classList.remove('hidden');
     logoutBtn.classList.remove('hidden');
     
-    requestNotifPermission();
-    
     console.log('Joining room:', currentRoom, 'as', username);
     socket.emit('join', { username: username, room: currentRoom, role: isAdmin ? 'admin' : 'user' });
+    socket.emit('join room', { username: username, room: currentRoom, role: isAdmin ? 'admin' : 'user' });
     
     loadContactsFromServer();
     loadAllUsers();
