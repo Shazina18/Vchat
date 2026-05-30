@@ -1581,7 +1581,9 @@ createRoomBtn.addEventListener('click', () => {
             const tabs = document.querySelectorAll('#tabs button');
             tabs[0].click();
             socket.emit('join room', { username: username, room: room, role: isAdmin ? 'admin' : 'user' });
+        });
         newRoomName.value = '';
+        roomList.appendChild(li);
     }
 });
 
