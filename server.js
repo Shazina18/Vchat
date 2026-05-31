@@ -40,6 +40,10 @@ if (USE_PG) {
             try { await pgPool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user'`); } catch (_) {}
             try { await pgPool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT`); } catch (_) {}
             console.log('PostgreSQL schema ready');
+            const PORT = process.env.PORT || 3000;
+            server.listen(PORT, '0.0.0.0', () => {
+                console.log('Server running on port ' + PORT);
+            });
         } catch (e) { console.error('PostgreSQL init error:', e.message); }
     })();
 } else {
