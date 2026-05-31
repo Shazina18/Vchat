@@ -9,7 +9,7 @@ function requestNotifPermission() {
 
 function sendNotif(title, body) {
     if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification(title, { body: body, icon: '/favicon.ico' });
+        new Notification(title, { body: body });
     }
 }
 
@@ -2135,10 +2135,16 @@ function showDeleteOptions(messageEl, sender, time) {
 
 // Voice Message Recording
 micBtn.addEventListener('click', async () => {
+    if (typeof MediaRecorder === 'undefined') {
+        alert('Voice recording is not supported in this browser');
+        return;
+    }
     if (!isRecording) {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
+            const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+            mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType });
+            const fileExt = mimeType === 'audio/webm' ? 'webm' : 'm4a';
             audioChunks = [];
             
             mediaRecorder.ondataavailable = (e) => {
@@ -2146,19 +2152,25 @@ micBtn.addEventListener('click', async () => {
             };
             
             mediaRecorder.onstop = async () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const audioBlob = new Blob(audioChunks, { type: mimeType });
                 const formData = new FormData();
-                formData.append('file', audioBlob, 'voice-message.webm');
+                formData.append('file', audioBlob, 'voice-message.' + fileExt);
                 
                 try {
                     const res = await fetch('/api/upload', { method: 'POST', body: formData });
                     const data = await res.json();
                     if (data.success) {
                         const audioUrl = '/uploads/' + data.filename;
+                        const audioHtml = `<audio controls src="${audioUrl}"></audio>`;
                         if (currentChatType === 'private' && activePrivateChat) {
-                            socket.emit('private message', { to: activePrivateChat, message: `<audio controls src="${audioUrl}"></audio>`, isVoiceMessage: true });
+                            socket.emit('private message', { to: activePrivateChat, message: audioHtml, isVoiceMessage: true });
+                            const msgData = { sender: username, text: audioHtml, time: getTime(), file: data.filename };
+                            if (privateChats.has(activePrivateChat)) privateChats.get(activePrivateChat).push(msgData);
+                            else privateChats.set(activePrivateChat, [msgData]);
+                            addMessage(username, audioHtml, true, getTime(), true, false, false, false, false, null, null, data.filename, 'sent');
                         } else {
-                            socket.emit('chat message', { sender: username, text: `<audio controls src="${audioUrl}"></audio>`, isVoiceMessage: true });
+                            socket.emit('chat message', { sender: username, text: audioHtml, isVoiceMessage: true });
+                            addMessage(username, audioHtml, true, getTime(), false, false, false, false, data.filename, null, null, data.filename, 'sent');
                         }
                     }
                 } catch (err) {

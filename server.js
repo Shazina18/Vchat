@@ -59,28 +59,38 @@ if (USE_PG) {
             }
         } catch (e) { console.error('DB error:', e.message); return isSelect ? [] : null; }
     };
-    (async () => {
-        const SQL = await initSqlJs();
-        let data = null;
-        if (fs.existsSync(DB_PATH)) data = new Uint8Array(fs.readFileSync(DB_PATH));
-        sqliteDb = new SQL.Database(data || undefined);
-        // Create tables + indices
-        sqliteDb.run("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, phone TEXT, email TEXT, profilePic TEXT, role TEXT DEFAULT 'user', registeredAt TEXT DEFAULT (datetime('now')))");
-        sqliteDb.run("CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, sender TEXT NOT NULL, text TEXT, to_user TEXT, room TEXT, file TEXT, isPrivate INTEGER DEFAULT 0, type TEXT DEFAULT 'message', callType TEXT, callFrom TEXT, callTo TEXT, duration INTEGER DEFAULT 0, callStatus TEXT, timestamp BIGINT, time TEXT, deletedForEveryone INTEGER DEFAULT 0)");
-        sqliteDb.run("CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room)");
-        sqliteDb.run("CREATE INDEX IF NOT EXISTS idx_messages_private ON messages(to_user, sender)");
-        sqliteDb.run("CREATE TABLE IF NOT EXISTS contacts (id INTEGER PRIMARY KEY AUTOINCREMENT, owner TEXT NOT NULL, contact TEXT NOT NULL, addedAt TEXT DEFAULT (datetime('now')), UNIQUE(owner, contact))");
-        sqliteDb.run("CREATE INDEX IF NOT EXISTS idx_contacts_owner ON contacts(owner)");
-        try { sqliteDb.run("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'"); } catch (_) {}
-        try { sqliteDb.run("ALTER TABLE users ADD COLUMN email TEXT"); } catch (_) {}
-        saveDb();
-        console.log('SQLite database ready');
-    })().catch(err => { console.error('DB init failed:', err); process.exit(1); });
     function saveDb() {
         if (!sqliteDb) return;
         try { fs.writeFileSync(DB_PATH, Buffer.from(sqliteDb.export())); } catch (e) { console.error('Save DB error:', e.message); }
     }
-    setInterval(saveDb, 5000);
+    // Wait for DB before starting server
+    (async () => {
+        try {
+            const SQL = await initSqlJs();
+            let data = null;
+            if (fs.existsSync(DB_PATH)) data = new Uint8Array(fs.readFileSync(DB_PATH));
+            sqliteDb = new SQL.Database(data || undefined);
+            sqliteDb.run("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, phone TEXT, email TEXT, profilePic TEXT, role TEXT DEFAULT 'user', registeredAt TEXT DEFAULT (datetime('now')))");
+            sqliteDb.run("CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, sender TEXT NOT NULL, text TEXT, to_user TEXT, room TEXT, file TEXT, isPrivate INTEGER DEFAULT 0, type TEXT DEFAULT 'message', callType TEXT, callFrom TEXT, callTo TEXT, duration INTEGER DEFAULT 0, callStatus TEXT, timestamp BIGINT, time TEXT, deletedForEveryone INTEGER DEFAULT 0)");
+            sqliteDb.run("CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room)");
+            sqliteDb.run("CREATE INDEX IF NOT EXISTS idx_messages_private ON messages(to_user, sender)");
+            sqliteDb.run("CREATE TABLE IF NOT EXISTS contacts (id INTEGER PRIMARY KEY AUTOINCREMENT, owner TEXT NOT NULL, contact TEXT NOT NULL, addedAt TEXT DEFAULT (datetime('now')), UNIQUE(owner, contact))");
+            sqliteDb.run("CREATE INDEX IF NOT EXISTS idx_contacts_owner ON contacts(owner)");
+            try { sqliteDb.run("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'"); } catch (_) {}
+            try { sqliteDb.run("ALTER TABLE users ADD COLUMN email TEXT"); } catch (_) {}
+            saveDb();
+            setInterval(saveDb, 5000);
+            console.log('SQLite database ready');
+            const PORT = process.env.PORT || 3000;
+            server.listen(PORT, '0.0.0.0', () => {
+                console.log('Server running on port ' + PORT);
+                console.log('Data persisted in SQLite (vchat.db)');
+            });
+        } catch (err) {
+            console.error('DB init failed:', err);
+            process.exit(1);
+        }
+    })();
 }
 
 let twilioClient = null;
@@ -626,10 +636,4 @@ io.on('connection', (socket) => {
         }
         onlineUsers.delete(socket.id);
     });
-});
-
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => {
-    console.log('Server running on port ' + PORT);
-    console.log('Data persisted in SQLite (vchat.db)');
 });
